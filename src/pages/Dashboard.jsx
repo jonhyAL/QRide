@@ -1,9 +1,9 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Heartbeat, Drop, Ruler, Scales, Phone, ArrowUpRight } from '@phosphor-icons/react';
-import { Share2, Download, AlertCircle, Trash } from 'lucide-react';
+import { Share2, Download, AlertCircle, Trash, Sparkles, Send, X, MessageCircle } from 'lucide-react';
 import { QRCodeSVG, QRCodeCanvas } from 'qrcode.react';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
@@ -27,6 +27,7 @@ export default function Dashboard() {
   // Modal states
   const [isEditMedicalModalOpen, setIsEditMedicalModalOpen] = useState(false);
   const [isAddContactModalOpen, setIsAddContactModalOpen] = useState(false);
+  const [isChatbotOpen, setIsChatbotOpen] = useState(false);
 
   const fetchDashboardData = useCallback(async (userId) => {
     setLoadingData(true);
@@ -369,6 +370,84 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+
+      {/* Burbuja Flotante del Chatbot QRide AI */}
+      <AnimatePresence>
+        {isChatbotOpen && (
+          <motion.div 
+            initial={{ opacity: 0, y: 50, scale: 0.9 }} 
+            animate={{ opacity: 1, y: 0, scale: 1 }} 
+            exit={{ opacity: 0, y: 50, scale: 0.9 }}
+            transition={{ duration: 0.3, type: "spring" }}
+            className="fixed bottom-24 right-6 w-full max-w-[360px] z-50"
+          >
+            <div className="bg-secondary bg-gradient-to-br from-[#1C1A27] to-secondary rounded-[2rem] p-6 shadow-[0_30px_60px_rgba(0,0,0,0.4)] border border-white/10 relative overflow-hidden">
+              {/* Gradiente estilo AI cósmico */}
+              <div className="absolute top-[-50px] right-[-50px] w-48 h-48 bg-primary/30 rounded-full blur-[3rem]"></div>
+              
+              <div className="relative z-10">
+                {/* Header del Chatbot */}
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-2xl bg-white/10 backdrop-blur-md flex items-center justify-center border border-white/10 text-white">
+                      <Sparkles size={24} className="text-white animate-pulse" />
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-extrabold text-white flex items-center gap-2">
+                        QRide AI
+                        <span className="text-[9px] font-black bg-primary text-white px-2 py-0.5 rounded-full uppercase tracking-widest whitespace-nowrap">BETA</span>
+                      </h3>
+                      <p className="text-sm font-medium text-gray-300">Asistente personal médico</p>
+                    </div>
+                  </div>
+                  <button 
+                    onClick={() => setIsChatbotOpen(false)}
+                    className="p-2 bg-white/5 hover:bg-white/10 rounded-full text-white/70 transition-colors"
+                  >
+                    <X size={20} />
+                  </button>
+                </div>
+
+                {/* Mensaje de bienvenida simulado */}
+                <div className="bg-white/10 backdrop-blur-sm border border-white/5 rounded-[1.5rem] p-5 mb-5 rounded-tl-sm h-[180px] overflow-y-auto">
+                  <p className="text-sm text-white/90 font-medium leading-relaxed">
+                    ¡Hola! Estoy en fase de pruebas para pronto ayudarte a analizar tus síntomas, recordarte medicamentos o guiarte en una emergencia usando tu historial. ¿En qué te puedo ayudar hoy?
+                  </p>
+                </div>
+
+                {/* Input Falso */}
+                <div className="relative">
+                  <input 
+                    type="text" 
+                    placeholder="Escribe aquí..." 
+                    disabled
+                    className="w-full bg-white/5 border border-white/10 rounded-[1.25rem] pl-5 pr-14 py-3.5 text-white placeholder-gray-400 font-medium focus:outline-none transition-all cursor-not-allowed text-sm"
+                  />
+                  <button 
+                    disabled
+                    className="absolute right-2 top-1/2 -translate-y-1/2 p-2.5 bg-white/10 rounded-xl text-white/50 opacity-60 cursor-not-allowed"
+                  >
+                    <Send size={18} />
+                  </button>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Botón Flotante para Abrir Chatbot */}
+      <motion.button
+        whileHover={{ scale: 1.05 }}
+        whileTap={{ scale: 0.95 }}
+        onClick={() => setIsChatbotOpen(!isChatbotOpen)}
+        className="fixed bottom-6 right-6 z-50 w-14 h-14 bg-secondary text-white rounded-full shadow-2xl flex items-center justify-center border-2 border-white/20 transition-all hover:shadow-[0_0_20px_rgba(44,37,77,0.5)]"
+      >
+        {isChatbotOpen ? <X size={24} /> : <MessageCircle size={24} />}
+        {!isChatbotOpen && (
+          <span className="absolute -top-1 -right-1 w-4 h-4 bg-primary rounded-full border-2 border-[#F4EFEA] animate-pulse"></span>
+        )}
+      </motion.button>
     </div>
   );
 }
