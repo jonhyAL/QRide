@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { Heartbeat, QrCode, ArrowRight } from "@phosphor-icons/react";
 import { Mail, Lock, Eye, EyeOff, Check, X } from "lucide-react";
 import gsap from "gsap";
@@ -23,6 +23,7 @@ export default function Auth() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [message, setMessage] = useState(null);
+  const [showVerifyModal, setShowVerifyModal] = useState(false);
 
   const hasMinLength = password.length >= 8;
   const hasUpper = /[A-Z]/.test(password);
@@ -74,7 +75,7 @@ export default function Auth() {
           }
         });
         if (error) throw error;
-        setMessage("Registro exitoso. Revisa tu bandeja de entrada para verificar tu cuenta.");
+        setShowVerifyModal(true);
       }
     } catch (err) {
       setError(err.message || "Ocurrió un error inesperado.");
@@ -393,6 +394,44 @@ export default function Auth() {
           </div>
         </motion.div>
       </div>
+
+      {/* VERIFICATION MODAL */}
+      <AnimatePresence>
+        {showVerifyModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowVerifyModal(false)}
+              className="absolute inset-0 bg-secondary/60 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative bg-white w-full max-w-md rounded-[2rem] shadow-2xl p-8 z-10 text-center flex flex-col items-center"
+            >
+              <div className="w-20 h-20 bg-primary/10 rounded-full flex flex-col items-center justify-center mb-6">
+                <Mail size={40} className="text-primary" />
+              </div>
+              <h3 className="text-2xl font-black text-secondary mb-2">¡Revisa tu correo!</h3>
+              <p className="text-gray-500 font-medium mb-8">
+                Hemos enviado un enlace de confirmación a <strong className="text-secondary">{email}</strong>. Por favor haz clic en él para activar tu cuenta y poder ingresar.
+              </p>
+              <button
+                onClick={() => {
+                  setShowVerifyModal(false);
+                  setIsLogin(true); // Cambiamos automáticamente al login para cuando vuelvan
+                }}
+                className="w-full py-4 bg-primary text-white font-bold rounded-xl hover:bg-primary-hover transition-colors active:scale-[0.98]"
+              >
+                Entendido
+              </button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

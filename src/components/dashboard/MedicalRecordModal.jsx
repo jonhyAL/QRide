@@ -12,6 +12,9 @@ export function MedicalRecordModal({ isOpen, onClose, user, medicalRecord, onSav
     allergies: '',
     medications: '',
     chronic_conditions: '',
+    nss: '',
+    preferred_hospital: '',
+    medical_notes: '',
   });
 
   useEffect(() => {
@@ -23,6 +26,9 @@ export function MedicalRecordModal({ isOpen, onClose, user, medicalRecord, onSav
         allergies: medicalRecord.allergies || '',
         medications: medicalRecord.medications || '',
         chronic_conditions: medicalRecord.chronic_conditions || '',
+        nss: medicalRecord.nss || '',
+        preferred_hospital: medicalRecord.preferred_hospital || '',
+        medical_notes: medicalRecord.medical_notes || '',
       });
     }
   }, [medicalRecord]);
@@ -44,6 +50,9 @@ export function MedicalRecordModal({ isOpen, onClose, user, medicalRecord, onSav
         allergies: formData.allergies,
         medications: formData.medications,
         chronic_conditions: formData.chronic_conditions,
+        nss: formData.nss,
+        preferred_hospital: formData.preferred_hospital,
+        medical_notes: formData.medical_notes,
         updated_at: new Date().toISOString(),
       };
 
@@ -171,6 +180,36 @@ export function MedicalRecordModal({ isOpen, onClose, user, medicalRecord, onSav
                 <textarea
                   name="chronic_conditions" placeholder="Ej. Asma, Diabetes, Hipertensión..." rows="2"
                   value={formData.chronic_conditions} onChange={handleChange}
+                  className="w-full bg-bg-light border-none rounded-xl px-4 py-3.5 text-secondary font-medium focus:ring-2 focus:ring-primary focus:bg-white transition-all outline-none resize-none"
+                ></textarea>
+              </div>
+
+              {/* IMSS e Información de Emergencia */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Número de Seguro Social (NSS/IMSS)</label>
+                  <input
+                    type="text" name="nss" placeholder="Ej. 12345678901"
+                    value={formData.nss} onChange={handleChange}
+                    className="w-full bg-bg-light border-none rounded-xl px-4 py-3.5 text-secondary font-bold focus:ring-2 focus:ring-primary focus:bg-white transition-all outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Hospital/Clínica Preferida</label>
+                  <input
+                    type="text" name="preferred_hospital" placeholder="Ej. HGZ 1 IMSS / Hospital Ángeles"
+                    value={formData.preferred_hospital} onChange={handleChange}
+                    className="w-full bg-bg-light border-none rounded-xl px-4 py-3.5 text-secondary font-bold focus:ring-2 focus:ring-primary focus:bg-white transition-all outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Notas e instrucciones médicas */}
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Instrucciones Especiales / Notas Médicas</label>
+                <textarea
+                  name="medical_notes" placeholder="Ej. En caso de emergencia administrar Epinefrina, etc..." rows="2"
+                  value={formData.medical_notes} onChange={handleChange}
                   className="w-full bg-bg-light border-none rounded-xl px-4 py-3.5 text-secondary font-medium focus:ring-2 focus:ring-primary focus:bg-white transition-all outline-none resize-none"
                 ></textarea>
               </div>

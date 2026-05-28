@@ -1,11 +1,11 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { LayoutDashboard, User, FileText, Settings, LogOut } from 'lucide-react';
+import { LayoutDashboard, User, FileText, Settings, LogOut, Car } from 'lucide-react';
 import { QrCode } from '@phosphor-icons/react';
 import { supabase } from '../../lib/supabase';
 import { useNavigate, useLocation } from 'react-router-dom';
 
-export function Sidebar({ user }) {
+export function Sidebar({ user, onAction }) {
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -15,10 +15,11 @@ export function Sidebar({ user }) {
   };
 
   const navItems = [
-    { name: 'Panel', icon: LayoutDashboard, path: '/dashboard' },
-    { name: 'Mi Perfil', icon: User, path: '/profile' },
-    { name: 'Ficha Médica', icon: FileText, path: '/medical' },
-    { name: 'Ajustes', icon: Settings, path: '/settings' },
+    { id: 'dashboard', name: 'Panel', icon: LayoutDashboard, path: '/dashboard' },
+    { id: 'profile', name: 'Mi Perfil', icon: User, path: '/dashboard' },
+    { id: 'vehicles', name: 'Vehículos', icon: Car, path: '/dashboard' },
+    { id: 'documents', name: 'Documentos', icon: FileText, path: '/dashboard' },
+    { id: 'settings', name: 'Ajustes', icon: Settings, path: '/dashboard' },
   ];
 
   return (
@@ -35,12 +36,15 @@ export function Sidebar({ user }) {
       {/* Navigation */}
       <nav className="flex-1 px-4 space-y-2">
         {navItems.map((item) => {
-          const isActive = location.pathname === item.path;
+          const isActive = location.pathname === item.path && item.id === 'dashboard'; // Por ahora marcamos activo solo Panel
           const Icon = item.icon;
           return (
             <button
-              key={item.name}
-              onClick={() => navigate(item.path)}
+              key={item.id}
+              onClick={() => {
+                if (item.id === 'dashboard') navigate('/dashboard');
+                else if (onAction) onAction(item.id);
+              }}
               className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl font-bold transition-all duration-300
                 ${isActive 
                   ? 'bg-primary text-white shadow-md shadow-primary/20' 

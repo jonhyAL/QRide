@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import PublicProfile from "./pages/PublicProfile";
+import AccountSettings from "./pages/AccountSettings";
 import { ProtectedRoute } from "./components/layout/ProtectedRoute";
 
 function App() {
@@ -16,6 +17,14 @@ function App() {
           element={
             <ProtectedRoute>
               <Dashboard />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/account" 
+          element={
+            <ProtectedRoute>
+              <AccountSettings />
             </ProtectedRoute>
           } 
         />

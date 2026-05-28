@@ -1,16 +1,20 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { supabase } from '../lib/supabase';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Heartbeat, Drop, Ruler, Scales, Phone, ArrowUpRight } from '@phosphor-icons/react';
-import { Share2, Download, AlertCircle, Trash, Sparkles, Send, X, MessageCircle } from 'lucide-react';
+import { Share2, Download, AlertCircle, Trash, Sparkles, Send, X, MessageCircle, Hospital, ShieldAlert } from 'lucide-react';
+
 import { QRCodeSVG, QRCodeCanvas } from 'qrcode.react';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { Sidebar } from '../components/layout/Sidebar';
+import { MobileNav } from '../components/layout/MobileNav';
 import { FloatingShapes } from '../components/ui/floating-shapes';
 import { MedicalRecordModal } from '../components/dashboard/MedicalRecordModal';
 import { EmergencyContactModal } from '../components/dashboard/EmergencyContactModal';
+import { VehiclesModal } from '../components/dashboard/VehiclesModal';
+import { DocumentsModal } from '../components/dashboard/DocumentsModal';
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -28,6 +32,30 @@ export default function Dashboard() {
   const [isEditMedicalModalOpen, setIsEditMedicalModalOpen] = useState(false);
   const [isAddContactModalOpen, setIsAddContactModalOpen] = useState(false);
   const [isChatbotOpen, setIsChatbotOpen] = useState(false);
+  const [isQRModalOpen, setIsQRModalOpen] = useState(false);
+  
+  // Custom action states for Sidebar missing modules
+  const [isUnderConstructionModalOpen, setIsUnderConstructionModalOpen] = useState(false);
+  const [constructionFeatureName, setConstructionFeatureName] = useState('');
+
+  const [isVehiclesModalOpen, setIsVehiclesModalOpen] = useState(false);
+  const [isDocumentsModalOpen, setIsDocumentsModalOpen] = useState(false);
+  const isAnyModalOpen = isEditMedicalModalOpen || isAddContactModalOpen || isQRModalOpen || isUnderConstructionModalOpen || isVehiclesModalOpen || isDocumentsModalOpen;
+
+  const handleSidebarAction = (actionId) => {
+    if (actionId === 'profile') {
+      navigate('/account', { state: { tab: 'profile' } });
+    } else if (actionId === 'settings') {
+      navigate('/account', { state: { tab: 'preferences' } });
+    } else if (actionId === 'vehicles') {
+      setIsVehiclesModalOpen(true);
+    } else if (actionId === 'documents') {
+      setIsDocumentsModalOpen(true);
+    } else {
+      setConstructionFeatureName(actionId);
+      setIsUnderConstructionModalOpen(true);
+    }
+  };
 
   const fetchDashboardData = useCallback(async (userId) => {
     setLoadingData(true);
@@ -66,6 +94,24 @@ export default function Dashboard() {
     } catch (error) {
       console.error('Error deleting contact:', error);
       alert('Error al eliminar el contacto');
+    }
+  };
+
+  const handleShare = async () => {
+    const profileUrl = `${window.location.origin}/p/${user?.id}`;
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'Mi Perfil Médico QRide',
+          text: 'En caso de emergencia, puedes consultar mi historial médico aquí.',
+          url: profileUrl,
+        });
+      } catch (error) {
+        console.error('Error al compartir:', error);
+      }
+    } else {
+      navigator.clipboard.writeText(profileUrl);
+      alert('Enlace copiado al portapapeles');
     }
   };
 
@@ -171,12 +217,25 @@ export default function Dashboard() {
         onSave={() => fetchDashboardData(user.id)}
       />
 
+      <VehiclesModal
+        isOpen={isVehiclesModalOpen}
+        onClose={() => setIsVehiclesModalOpen(false)}
+        user={user}
+      />
+
+      <DocumentsModal
+        isOpen={isDocumentsModalOpen}
+        onClose={() => setIsDocumentsModalOpen(false)}
+        user={user}
+      />
+
+
       {/* Sidebar - Ahora es oscura y flotante */}
-      <Sidebar user={user} />
+      <Sidebar user={user} onAction={handleSidebarAction} />
 
       {/* Main Content */}
       <div className="flex-1 md:ml-[290px] relative z-10">
-        <div className="p-6 md:p-10 max-w-6xl mx-auto space-y-8">
+        <div className="p-6 md:p-10 max-w-6xl mx-auto space-y-8 pb-32 md:pb-10">
           
           {/* Header minimalista y contrastante */}
           <motion.div 
@@ -208,7 +267,10 @@ export default function Dashboard() {
                 <div className="absolute top-0 right-0 -mr-8 -mt-8 w-40 h-40 bg-white/5 rounded-full blur-2xl"></div>
                 
                 <div className="relative z-10 flex flex-col items-center flex-1">
-                  <div className="bg-white/10 p-5 rounded-3xl mb-6 backdrop-blur-sm border border-white/10">
+<div 
+                      onClick={() => setIsQRModalOpen(true)}
+                      className="bg-white/10 p-5 rounded-3xl mb-6 backdrop-blur-sm border border-white/10 cursor-pointer hover:scale-105 transition-transform"
+                    >
                     <div className="p-3 bg-white rounded-2xl shadow-lg flex items-center justify-center w-[160px] h-[160px]">
                       <QRCodeSVG 
                         value={`${window.location.origin}/p/${user.id}`} 
@@ -224,7 +286,10 @@ export default function Dashboard() {
                   </p>
                   
                   <div className="flex items-center gap-3 w-full mt-auto">
-                    <button className="flex-1 flex items-center justify-center gap-2 bg-white/10 hover:bg-white/20 border border-white/10 text-white py-3.5 rounded-xl transition-colors text-sm font-bold">
+                      <button 
+                        onClick={handleShare}
+                        className="flex-1 flex items-center justify-center gap-2 bg-white/10 hover:bg-white/20 border border-white/10 text-white py-3.5 rounded-xl transition-colors text-sm font-bold"
+                      >
                       <Share2 size={16} /> Compartir
                     </button>
                       <button 
@@ -260,7 +325,7 @@ export default function Dashboard() {
                   </button>
                 </div>
 
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                   <div className="bg-red-50 p-5 rounded-[1.5rem] border-none group">
                     <div className="bg-white w-10 h-10 rounded-full flex items-center justify-center mb-4 shadow-sm text-red-500 group-hover:scale-110 transition-transform">
                       <Drop size={20} weight="fill" />
@@ -296,8 +361,30 @@ export default function Dashboard() {
                     <p className="text-[10px] font-extrabold text-orange-900/50 uppercase tracking-widest mb-1">Alergias</p>
                     <p className="text-lg font-black text-orange-950 leading-tight">
                       {medicalRecord?.allergies ? (
-                        medicalRecord.allergies.length > 12 ? medicalRecord.allergies.substring(0, 12) + '...' : medicalRecord.allergies
+                        medicalRecord.allergies.length > 20 ? medicalRecord.allergies.substring(0, 20) + '...' : medicalRecord.allergies
                       ) : 'Ninguna'}
+                    </p>
+                  </div>
+
+                  <div className="bg-purple-50 p-5 rounded-[1.5rem] border-none group col-span-2 md:col-span-1">
+                    <div className="bg-white w-10 h-10 rounded-full flex items-center justify-center mb-4 shadow-sm text-purple-500 group-hover:scale-110 transition-transform">
+                      <ShieldAlert size={20} />
+                    </div>
+                    <p className="text-[10px] font-extrabold text-purple-900/50 uppercase tracking-widest mb-1">NSS (Seguro)</p>
+                    <p className="text-lg font-black text-purple-950 leading-tight">
+                      {medicalRecord?.nss || '--'}
+                    </p>
+                  </div>
+
+                  <div className="bg-teal-50 p-5 rounded-[1.5rem] border-none group col-span-2 md:col-span-1">
+                    <div className="bg-white w-10 h-10 rounded-full flex items-center justify-center mb-4 shadow-sm text-teal-500 group-hover:scale-110 transition-transform">
+                      <Hospital size={20} />
+                    </div>
+                    <p className="text-[10px] font-extrabold text-teal-900/50 uppercase tracking-widest mb-1">Hospital Preferido</p>
+                    <p className="text-lg font-black text-teal-950 leading-tight">
+                      {medicalRecord?.preferred_hospital ? (
+                        medicalRecord.preferred_hospital.length > 20 ? medicalRecord.preferred_hospital.substring(0, 20) + '...' : medicalRecord.preferred_hospital
+                      ) : '--'}
                     </p>
                   </div>
                 </div>
@@ -371,6 +458,89 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {/* Modal - Próximamente (Perfil y Ajustes) */}
+      <AnimatePresence>
+        {isUnderConstructionModalOpen && (
+          <motion.div 
+            initial={{ opacity: 0 }} 
+            animate={{ opacity: 1 }} 
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+            onClick={() => setIsUnderConstructionModalOpen(false)}
+          >
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0, y: 20 }} 
+              animate={{ scale: 1, opacity: 1, y: 0 }} 
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white p-8 rounded-[2rem] shadow-2xl relative max-w-sm w-full flex flex-col items-center text-center"
+            >
+              <button 
+                onClick={() => setIsUnderConstructionModalOpen(false)}
+                className="absolute top-4 right-4 p-2 bg-gray-100 hover:bg-gray-200 rounded-full text-gray-600 transition-colors"
+              >
+                <X size={20} />
+              </button>
+              
+              <div className="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center mb-6 text-blue-500">
+                <ShieldAlert size={32} />
+              </div>
+              <h3 className="text-secondary text-2xl font-black mb-3">{constructionFeatureName}</h3>
+              <p className="text-gray-500 font-medium mb-6">
+                Estamos trabajando aplicando medidas de máxima seguridad (encriptación AES-256) antes de liberar este módulo al público.
+              </p>
+              <span className="px-4 py-2 bg-gray-100 rounded-full text-xs font-bold text-gray-400 tracking-widest uppercase mb-2">Próximamente</span>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Modal QR Ampliado */}
+      <AnimatePresence>
+        {isQRModalOpen && (
+          <motion.div 
+            initial={{ opacity: 0 }} 
+            animate={{ opacity: 1 }} 
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+            onClick={() => setIsQRModalOpen(false)}
+          >
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }} 
+              animate={{ scale: 1, opacity: 1 }} 
+              exit={{ scale: 0.9, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white p-8 rounded-[2rem] shadow-2xl relative max-w-sm w-full flex flex-col items-center"
+            >
+              <button 
+                onClick={() => setIsQRModalOpen(false)}
+                className="absolute top-4 right-4 p-2 bg-gray-100 hover:bg-gray-200 rounded-full text-gray-600 transition-colors"
+              >
+                <X size={20} />
+              </button>
+              
+              <h3 className="text-secondary text-2xl font-black mb-6 text-center">Tu Código QRide</h3>
+              <div className="bg-white p-4 rounded-3xl shadow-inner border border-gray-100 mb-6">
+                <QRCodeSVG 
+                  value={`${window.location.origin}/p/${user?.id}`} 
+                  size={250} 
+                  level="H" 
+                />
+              </div>
+              <p className="text-gray-500 text-sm font-medium text-center mb-6">
+                Muestra este código al personal médico de emergencia para que escaneen tu perfil vital.
+              </p>
+              <button 
+                onClick={handleShare}
+                className="w-full flex items-center justify-center gap-2 bg-secondary hover:bg-secondary/90 text-white py-4 rounded-xl transition-colors font-bold"
+              >
+                <Share2 size={20} /> Compartir Perfil
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Burbuja Flotante del Chatbot QRide AI */}
       <AnimatePresence>
         {isChatbotOpen && (
@@ -437,17 +607,20 @@ export default function Dashboard() {
       </AnimatePresence>
 
       {/* Botón Flotante para Abrir Chatbot */}
-      <motion.button
-        whileHover={{ scale: 1.05 }}
-        whileTap={{ scale: 0.95 }}
-        onClick={() => setIsChatbotOpen(!isChatbotOpen)}
-        className="fixed bottom-6 right-6 z-50 w-14 h-14 bg-secondary text-white rounded-full shadow-2xl flex items-center justify-center border-2 border-white/20 transition-all hover:shadow-[0_0_20px_rgba(44,37,77,0.5)]"
-      >
-        {isChatbotOpen ? <X size={24} /> : <MessageCircle size={24} />}
-        {!isChatbotOpen && (
-          <span className="absolute -top-1 -right-1 w-4 h-4 bg-primary rounded-full border-2 border-[#F4EFEA] animate-pulse"></span>
-        )}
-      </motion.button>
+      {!isAnyModalOpen && (
+        <motion.button
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          onClick={() => setIsChatbotOpen(!isChatbotOpen)}
+          className="fixed bottom-4 md:bottom-6 right-3 md:right-6 z-[60] w-[4.5rem] h-[4.5rem] bg-primary text-white rounded-full shadow-[0_4px_15px_rgba(230,57,70,0.4)] flex items-center justify-center border-2 border-[#2C254D] transition-all hover:scale-105 active:scale-95"
+        >
+          {isChatbotOpen ? <X size={32} /> : <MessageCircle size={32} />}
+          {!isChatbotOpen && (
+            <span className="absolute -top-1 -right-1 w-4 h-4 bg-primary rounded-full border-2 border-[#F4EFEA] animate-pulse"></span>
+          )}
+        </motion.button>
+      )}
+      {!isAnyModalOpen && <MobileNav onAction={handleSidebarAction} />}
     </div>
   );
 }
