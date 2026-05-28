@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { Heartbeat, Drop, Ruler, Scales, Phone, WarningCircle, ShieldPlus } from '@phosphor-icons/react';
 import { AlertCircle, User, Car, FileText, Lock, Sparkles, X, MessageCircle, Send } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { FloatingShapes } from '../components/ui/floating-shapes';
 
 export default function PublicProfile() {
   const { id } = useParams();
@@ -69,7 +70,8 @@ export default function PublicProfile() {
   ];
 
   return (
-    <div className="min-h-screen bg-red-600 text-white font-sans selection:bg-black selection:text-white pb-28">
+    <div className="min-h-screen bg-red-600 text-white font-sans selection:bg-black selection:text-white pb-28 relative overflow-hidden">
+      <FloatingShapes variant="emergency" />
       <div className="bg-black/20 backdrop-blur-md sticky top-0 z-50 p-4 text-center border-b border-white/10 shadow-xl">
         <p className="font-black text-sm md:text-base tracking-widest uppercase flex items-center justify-center gap-2">
           <Heartbeat size={20} weight="fill" className="animate-pulse" />
@@ -77,7 +79,7 @@ export default function PublicProfile() {
         </p>
       </div>
 
-      <div className="max-w-3xl mx-auto p-4 md:p-8 space-y-6">
+      <div className="max-w-3xl mx-auto p-4 md:p-8 space-y-6 relative z-10">
         
         {/* Profile Info Header */}
         <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="flex flex-col items-center text-center mb-8 pt-4">
