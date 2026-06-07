@@ -112,7 +112,7 @@ export function DocumentsModal({ isOpen, onClose, user }) {
                 </div>
                 <div>
                   <h3 className="text-xl font-bold text-secondary">Documentos Médicos</h3>
-                  <p className="text-sm border border-purple-200 bg-purple-50 px-2 py-0.5 rounded-md text-purple-700 font-bold inline-flex items-center gap-1 mt-1 transition-all"><Lock size={12}/> Solo Paramédicos Verificados</p>
+                  <p className="text-sm border border-purple-200 bg-purple-50 px-2 py-0.5 rounded-md text-purple-700 font-bold inline-flex items-center gap-1 mt-1 transition-all"><FileText size={12}/> Documentos del Usuario</p>
                 </div>
               </div>
               <button onClick={onClose} className="p-2 text-secondary/40 hover:text-secondary hover:bg-secondary/5 rounded-xl transition-colors">

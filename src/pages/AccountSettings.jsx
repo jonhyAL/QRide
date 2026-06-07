@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
+import * as XLSX from 'xlsx';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { 
   ArrowLeft, UserList, LockKey, EnvelopeSimple, 
@@ -139,101 +140,110 @@ export default function AccountSettings() {
     setIsExporting(true);
     setDataMessage({ type: '', text: '' });
     try {
-      // Fetch all user information
-      const [medicalRes, contactsRes, vehiclesRes, docsRes] = await Promise.all([
+      const [mdRes, ctRes, vhRes] = await Promise.all([
         supabase.from('medical_records').select('*').eq('user_id', user.id).maybeSingle(),
         supabase.from('emergency_contacts').select('*').eq('user_id', user.id),
-        supabase.from('vehicles').select('*').eq('user_id', user.id),
-        supabase.from('user_documents').select('*').eq('user_id', user.id)
+        supabase.from('vehicles').select('*').eq('user_id', user.id)
       ]);
 
-      const exportData = {
-        version: '1.0',
-        metadata: user.user_metadata,
-        medical_record: medicalRes.data || {},
-        emergency_contacts: contactsRes.data || [],
-        vehicles: vehiclesRes.data || [],
-        documents: docsRes.data || []
-      };
+      const wb = XLSX.utils.book_new();
 
-      const dataStr = JSON.stringify(exportData, null, 2);
-      const blob = new Blob([dataStr], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `qride_backup_${new Date().toISOString().split('T')[0]}.json`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
+      if (mdRes.data) {
+        const medicalData = [mdRes.data];
+        const wsMedical = XLSX.utils.json_to_sheet(medicalData);
+        XLSX.utils.book_append_sheet(wb, wsMedical, "Ficha Medica");
+      }
+
+      if (ctRes.data && ctRes.data.length > 0) {
+        const wsContacts = XLSX.utils.json_to_sheet(ctRes.data);
+        XLSX.utils.book_append_sheet(wb, wsContacts, "Contactos");
+      }
       
-      setDataMessage({ type: 'success', text: 'Tus datos se exportaron correctamente.' });
+      if (vhRes.data && vhRes.data.length > 0) {
+        const wsVehicles = XLSX.utils.json_to_sheet(vhRes.data);
+        XLSX.utils.book_append_sheet(wb, wsVehicles, "Vehiculos");
+      }
+
+      XLSX.writeFile(wb, `qride_respaldo_${new Date().toISOString().split('T')[0]}.xlsx`);
+      setDataMessage({ type: 'success', text: 'Tus datos se exportaron correctamente en formato Excel.' });
+      
     } catch (error) {
-      setDataMessage({ type: 'error', text: 'Error al exportar los datos: ' + error.message });
+      console.error('Export error:', error);
+      setDataMessage({ type: 'error', text: 'Error al generar Excel: ' + error.message });
     } finally {
       setIsExporting(false);
     }
   };
 
-  const handleImportData = (event) => {
-    const file = event.target.files[0];
+  const handleImportData = async (event) => {
+    const file = event.target.files?.[0];
     if (!file) return;
+
+    if (!window.confirm('Cargar este archivo reemplazará o agregará múltiples registros médicos (contactos, ficha). ¿Seguro de continuar?')) {
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
 
     setIsImporting(true);
     setDataMessage({ type: '', text: '' });
-
+    
     const reader = new FileReader();
     reader.onload = async (e) => {
       try {
-        const importedData = JSON.parse(e.target.result);
+        const data = new Uint8Array(e.target.result);
+        const wb = XLSX.read(data, { type: 'array' });
         
-        // Remove ids and set user_id for current user
-        if (importedData.metadata) {
-          await supabase.auth.updateUser({ data: importedData.metadata });
+        let importCount = 0;
+
+        // Ficha Médica
+        if (wb.SheetNames.includes("Ficha Medica")) {
+          const mdData = XLSX.utils.sheet_to_json(wb.Sheets["Ficha Medica"]);
+          if (mdData.length > 0) {
+             const row = mdData[0];
+             delete row.id; 
+             delete row.user_id;
+
+             const { data: existingRecord } = await supabase.from('medical_records').select('id').eq('user_id', user.id).maybeSingle();
+             if (existingRecord) {
+                await supabase.from('medical_records').update(row).eq('id', existingRecord.id);
+             } else {
+                row.user_id = user.id;
+                await supabase.from('medical_records').insert([row]);
+             }
+             importCount++;
+          }
         }
 
-        if (importedData.medical_record && Object.keys(importedData.medical_record).length > 0) {
-          const { id, user_id, created_at, ...medicalData } = importedData.medical_record;
-          const { error: medError } = await supabase.from('medical_records')
-            .upsert({ user_id: user.id, ...medicalData }, { onConflict: 'user_id' });
-          if (medError) throw medError;
+        // Contactos
+        if (wb.SheetNames.includes("Contactos")) {
+          const contacts = XLSX.utils.sheet_to_json(wb.Sheets["Contactos"]);
+          if (contacts.length > 0) {
+            const cleanContacts = contacts.map(c => {
+               delete c.id;
+               delete c.created_at;
+               c.user_id = user.id;
+               return c;
+            });
+            await supabase.from('emergency_contacts').insert(cleanContacts);
+            importCount += contacts.length;
+          }
         }
 
-        if (importedData.emergency_contacts && importedData.emergency_contacts.length > 0) {
-          const contacts = importedData.emergency_contacts.map(({ id, user_id, created_at, ...rest }) => ({
-            user_id: user.id, ...rest
-          }));
-          const { error: contactsError } = await supabase.from('emergency_contacts').insert(contacts);
-          if (contactsError) throw contactsError;
-        }
-
-        if (importedData.vehicles && importedData.vehicles.length > 0) {
-          const vehicles = importedData.vehicles.map(({ id, user_id, created_at, ...rest }) => ({
-            user_id: user.id, ...rest
-          }));
-          const { error: vError } = await supabase.from('vehicles').insert(vehicles);
-          if (vError) throw vError;
-        }
-
-        setDataMessage({ type: 'success', text: 'Se ha importado y combinado tu perfil exitosamente.' });
-        // Refresh local state to match new metadata
-        const { data: { user: updatedUser } } = await supabase.auth.getUser();
-        if (updatedUser) {
-          setUser(updatedUser);
-          setFirstName(updatedUser.user_metadata?.first_name || '');
-          setLastName(updatedUser.user_metadata?.last_name || '');
-          setPhone(updatedUser.user_metadata?.phone || '');
-          setAvatarUrl(updatedUser.user_metadata?.avatar_url || '');
+        if (importCount > 0) {
+          setDataMessage({ type: 'success', text: '¡Datos de Excel importados exitosamente!' });
+        } else {
+          setDataMessage({ type: 'error', text: 'El archivo Excel está vacío o le faltan pestañas ("Ficha Medica" y/o "Contactos").' });
         }
 
       } catch (error) {
-        setDataMessage({ type: 'error', text: 'Archivo inválido o error de importación.' });
+        console.error('Import error:', error);
+        setDataMessage({ type: 'error', text: 'Hubo un problema procesando el formato del Excel.' });
       } finally {
         setIsImporting(false);
         if (fileInputRef.current) fileInputRef.current.value = '';
       }
     };
-    reader.readAsText(file);
+    reader.readAsArrayBuffer(file);
   };
 
   const renderToggle = ({ label, icon: Icon, description, checked, onChange }) => (
@@ -615,7 +625,7 @@ export default function AccountSettings() {
                   
                   <input
                     type="file"
-                    accept=".json"
+                    accept=".xlsx, .xls"
                     ref={fileInputRef}
                     onChange={handleImportData}
                     className="hidden"
@@ -626,7 +636,7 @@ export default function AccountSettings() {
                     className="flex w-full sm:w-auto items-center justify-center gap-2 py-3.5 px-6 rounded-xl font-bold bg-[#F4EFEA] hover:bg-[#E8DFD8] text-secondary transition-all disabled:opacity-50"
                   >
                     <UploadSimple size={20} weight="bold" />
-                    {isImporting ? 'Procesando importación...' : 'Subir archivo de respaldo (.json)'}
+                    {isImporting ? 'Procesando importación...' : 'Subir archivo de respaldo (.xlsx)'}
                   </button>
                 </section>
               </div>

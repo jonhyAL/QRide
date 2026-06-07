@@ -1,9 +1,9 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion';
 import { Heartbeat, Drop, Ruler, Scales, Phone, ArrowUpRight } from '@phosphor-icons/react';
-import { Share2, Download, AlertCircle, Trash, Sparkles, Send, X, MessageCircle, Hospital, ShieldAlert } from 'lucide-react';
+import { Share2, Download, AlertCircle, Trash, Sparkles, Send, X, Bot, MessageCircle, Hospital, ShieldAlert, Maximize2 } from 'lucide-react';
 
 import { QRCodeSVG, QRCodeCanvas } from 'qrcode.react';
 import jsPDF from 'jspdf';
@@ -17,6 +17,9 @@ import { VehiclesModal } from '../components/dashboard/VehiclesModal';
 import { DocumentsModal } from '../components/dashboard/DocumentsModal';
 
 export default function Dashboard() {
+  const dragX = useMotionValue(0);
+  // Se ajustó para que inicie exactamente en los bordes del botón (48px) y no se asome
+  const sliderFillWidth = useTransform(dragX, [0, 196], ["48px", "252px"]);
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
   
@@ -40,7 +43,8 @@ export default function Dashboard() {
 
   const [isVehiclesModalOpen, setIsVehiclesModalOpen] = useState(false);
   const [isDocumentsModalOpen, setIsDocumentsModalOpen] = useState(false);
-  const isAnyModalOpen = isEditMedicalModalOpen || isAddContactModalOpen || isQRModalOpen || isUnderConstructionModalOpen || isVehiclesModalOpen || isDocumentsModalOpen;
+  const [isEmergencySliderOpen, setIsEmergencySliderOpen] = useState(false);
+  const isAnyModalOpen = isEditMedicalModalOpen || isAddContactModalOpen || isQRModalOpen || isUnderConstructionModalOpen || isVehiclesModalOpen || isDocumentsModalOpen || isEmergencySliderOpen;
 
   const handleSidebarAction = (actionId) => {
     if (actionId === 'profile') {
@@ -152,11 +156,68 @@ export default function Dashboard() {
     getUser();
   }, [navigate, fetchDashboardData]);
 
-  if (!user || loadingData) return <div className="min-h-screen flex items-center justify-center bg-[#F4EFEA] font-sans">
-    <div className="w-10 h-10 border-4 border-primary/30 border-t-primary rounded-full animate-spin"></div>
-  </div>;
+  if (!user || loadingData) return (
+    <div className="min-h-screen bg-[#F4EFEA] font-sans flex relative overflow-hidden">
+      {/* Skeleton Desktop Nav */}
+      <div className="hidden md:flex flex-col w-24 lg:w-[240px] bg-[#1C1A27] text-white shadow-2xl z-50 fixed h-full p-4 lg:p-6 transition-all duration-300">
+        <div className="h-10 w-10 lg:w-32 bg-white/10 rounded-xl mb-12 animate-pulse" />
+        <div className="space-y-4 w-full">
+          {[1,2,3,4,5].map(i => <div key={i} className="h-12 w-full bg-white/5 rounded-xl animate-pulse" />)}
+        </div>
+      </div>
 
-  return (
+      <div className="flex-1 flex flex-col md:pl-24 lg:pl-[240px] transition-all duration-300 w-full">
+        {/* Skeleton Mobile Header */}
+        <div className="bg-[#1C1A27] p-4 sticky top-0 z-40 md:hidden flex justify-between items-center shadow-lg">
+          <div className="h-8 w-24 bg-white/10 rounded-lg animate-pulse" />
+          <div className="h-10 w-10 bg-white/10 rounded-full animate-pulse" />
+        </div>
+
+        <main className="flex-1 p-4 md:p-8 max-w-7xl mx-auto w-full pb-28 md:pb-8">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4 pt-2">
+            <div>
+              <div className="h-4 w-32 bg-gray-200 rounded-lg animate-pulse mb-3" />
+              <div className="h-8 w-48 bg-gray-300 rounded-lg animate-pulse" />
+            </div>
+            <div className="h-12 w-32 bg-gray-300 rounded-full animate-pulse hidden md:block" />
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
+            <div className="lg:col-span-2 space-y-6 md:space-y-8">
+              {/* Card Skeleton */}
+              <div className="w-full h-[220px] md:h-[280px] bg-primary/20 rounded-[1.5rem] animate-pulse shadow-xl" />
+              
+              {/* Vitals Skeleton */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+                {[1,2,3,4].map(i => (
+                  <div key={i} className="bg-white p-4 md:p-5 rounded-[1.5rem] shadow-sm h-[110px] md:h-[130px] flex flex-col justify-between">
+                    <div className="w-10 h-10 bg-gray-100 rounded-2xl animate-pulse" />
+                    <div>
+                      <div className="h-6 w-16 bg-gray-300 rounded-lg animate-pulse mb-1" />
+                      <div className="h-3 w-10 bg-gray-100 rounded-lg animate-pulse" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-6 md:space-y-8">
+               {/* Controls skeleton */}
+               <div className="bg-white rounded-[2rem] p-5 shadow-sm">
+                  <div className="h-6 w-40 bg-gray-300 rounded-lg animate-pulse mb-6" />
+                  <div className="grid grid-cols-2 gap-3">
+                    {[1, 2, 3, 4].map(i => (
+                      <div key={i} className="aspect-square bg-gray-100 rounded-3xl animate-pulse" />
+                    ))}
+                  </div>
+               </div>
+            </div>
+          </div>
+        </main>
+      </div>
+    </div>
+);
+return (
     <div className="min-h-screen bg-[#F4EFEA] font-sans flex relative overflow-hidden">
       <FloatingShapes />
       
@@ -248,10 +309,20 @@ export default function Dashboard() {
               </h1>
               <p className="text-gray-500 font-medium mt-1">Este es el resumen de tu identidad vital.</p>
             </div>
-            <button className="flex items-center gap-2 bg-white hover:bg-gray-50 border-2 border-red-100 px-5 py-2.5 rounded-2xl text-sm font-bold text-red-600 shadow-sm transition-all focus:ring-4 focus:ring-red-100">
-              <AlertCircle size={18} />
-              Notificar Emergencia
-            </button>
+            <button 
+                onClick={() => {
+                  if (!contacts || contacts.length === 0) {
+                    alert('Debes agregar al menos un contacto de emergencia (sección inferior) para usar esta función.');
+                    return;
+                  }
+                  dragX.set(0);
+                  setIsEmergencySliderOpen(true);
+                }}
+                className="flex items-center gap-2 bg-white hover:bg-gray-50 border-2 border-red-100 px-5 py-2.5 rounded-2xl text-sm font-bold text-red-600 shadow-sm transition-all focus:ring-4 focus:ring-red-100 active:scale-95"
+              >
+                <AlertCircle size={18} />
+                Notificar Emergencia
+              </button>
           </motion.div>
 
           {/* Grid Principal - Estilo Bento Macizo y Elegante */}
@@ -549,13 +620,13 @@ export default function Dashboard() {
             animate={{ opacity: 1, y: 0, scale: 1 }} 
             exit={{ opacity: 0, y: 50, scale: 0.9 }}
             transition={{ duration: 0.3, type: "spring" }}
-            className="fixed bottom-24 right-6 w-full max-w-[360px] z-50"
+            className="fixed inset-0 z-[100] flex flex-col bg-[#161427]/95 backdrop-blur-xl px-4 py-8 md:p-8"
           >
-            <div className="bg-secondary bg-gradient-to-br from-[#1C1A27] to-secondary rounded-[2rem] p-6 shadow-[0_30px_60px_rgba(0,0,0,0.4)] border border-white/10 relative overflow-hidden">
+            <div className="bg-secondary bg-gradient-to-br from-[#1C1A27] to-secondary rounded-[2rem] w-full h-full flex flex-col p-6 shadow-2xl relative overflow-hidden">
               {/* Gradiente estilo AI cósmico */}
               <div className="absolute top-[-50px] right-[-50px] w-48 h-48 bg-primary/30 rounded-full blur-[3rem]"></div>
               
-              <div className="relative z-10">
+              <div className="relative z-10 flex flex-col flex-1">
                 {/* Header del Chatbot */}
                 <div className="flex items-center justify-between mb-6">
                   <div className="flex items-center gap-3">
@@ -570,16 +641,24 @@ export default function Dashboard() {
                       <p className="text-sm font-medium text-gray-300">Asistente personal médico</p>
                     </div>
                   </div>
-                  <button 
-                    onClick={() => setIsChatbotOpen(false)}
-                    className="p-2 bg-white/5 hover:bg-white/10 rounded-full text-white/70 transition-colors"
-                  >
-                    <X size={20} />
-                  </button>
-                </div>
+                  <div className="flex items-center gap-2">
+                      <button 
+                        onClick={() => window.location.href = '/chat'}
+                        className="p-2 bg-white/5 hover:bg-white/10 hover:text-white rounded-full text-white/70 transition-colors"
+                        title="Ampliar Chat"
+                      >
+                        <Maximize2 size={20} />
+                      </button>
+                      <button 
+                        onClick={() => setIsChatbotOpen(false)}
+                        className="p-2 bg-white/5 hover:bg-white/10 hover:text-white rounded-full text-white/70 transition-colors"
+                      >
+                        <X size={24} />
+                      </button>
+                    </div></div>
 
                 {/* Mensaje de bienvenida simulado */}
-                <div className="bg-white/10 backdrop-blur-sm border border-white/5 rounded-[1.5rem] p-5 mb-5 rounded-tl-sm h-[180px] overflow-y-auto">
+                <div className="bg-white/10 backdrop-blur-sm border border-white/5 rounded-[1.5rem] p-5 mb-5 rounded-tl-sm flex-1 overflow-y-auto">
                   <p className="text-sm text-white/90 font-medium leading-relaxed">
                     ¡Hola! Estoy en fase de pruebas para pronto ayudarte a analizar tus síntomas, recordarte medicamentos o guiarte en una emergencia usando tu historial. ¿En qué te puedo ayudar hoy?
                   </p>
@@ -606,7 +685,71 @@ export default function Dashboard() {
         )}
       </AnimatePresence>
 
-      {/* Botón Flotante para Abrir Chatbot */}
+      
+        {/* Modal de Confirmación de Emergencia con Deslizador */}
+        <AnimatePresence>
+          {isEmergencySliderOpen && (
+            <motion.div
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+            >
+              <motion.div
+                initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }}
+                className="bg-white rounded-[2rem] p-6 md:p-8 w-full max-w-sm text-center shadow-2xl relative"
+              >
+                <button
+                  onClick={() => setIsEmergencySliderOpen(false)}
+                  className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-50 rounded-full p-2"
+                >
+                  <X size={20} />
+                </button>
+                
+                <div className="mx-auto bg-red-100/50 w-20 h-20 rounded-full flex flex-col items-center justify-center mb-6 border border-red-100">
+                  <ShieldAlert size={36} className="text-red-500" />
+                </div>
+                
+                <h2 className="text-2xl md:text-3xl font-black text-secondary mb-2">Confirmar Alerta</h2>
+                <p className="text-gray-500 text-sm md:text-base mb-8 font-medium px-4">
+                  Desliza para enviar un mensaje SMS de auxilio con tu historial médico a todos tus contactos.
+                </p>
+
+                {/* Contenedor del Slider */}
+                <div className="relative w-[260px] mx-auto h-14 bg-red-50 border border-red-200 rounded-full flex items-center justify-center overflow-hidden shadow-inner">
+                  {/* Barra de progreso de color acoplada a la paleta */}
+                  <motion.div 
+                    className="absolute left-1 top-1 bottom-1 bg-primary z-0 rounded-full"
+                    style={{ width: sliderFillWidth }}
+                  />
+                  <span className="text-red-600/60 font-bold text-sm z-10 pl-10 pointer-events-none select-none">Desliza para notificar</span>
+                  
+                  <motion.div
+                    drag="x"
+                    style={{ x: dragX }}
+                    dragConstraints={{ left: 0, right: 260 - 56 - 8 }}
+                    dragElastic={0.1}
+                    dragSnapToOrigin={true}
+                    onDragEnd={(e, info) => {
+                      if (info.offset.x > 150) {
+                        setIsEmergencySliderOpen(false);
+                        const phones = contacts.map(c => c.phone).join(',');
+                        const userName = user?.user_metadata?.first_name || 'un paciente';
+                        const publicUrl = window.location.origin + '/qr/' + user.id;
+                        const msg = encodeURIComponent(`🚨 ALERTA MÉDICA: Emergencia reportada por ${userName}. Revisa mi ubicación actual o ficha médica aquí: ${publicUrl}`);
+                        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+                        window.location.href = `sms:${phones}${isIOS ? '&' : '?'}body=${msg}`;
+                      }
+                    }}
+                    className="absolute left-1 top-1 w-12 h-12 bg-red-600 rounded-full shadow-lg flex items-center justify-center cursor-grab active:cursor-grabbing z-10"
+                  >
+                    <Send size={20} className="text-white ml-[-2px]" />
+                  </motion.div>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+        
+        {/* Botón Flotante para Abrir Chatbot */}
       {!isAnyModalOpen && (
         <motion.button
           whileHover={{ scale: 1.05 }}
@@ -614,7 +757,7 @@ export default function Dashboard() {
           onClick={() => setIsChatbotOpen(!isChatbotOpen)}
           className="fixed bottom-4 md:bottom-6 right-3 md:right-6 z-[60] w-[4.5rem] h-[4.5rem] bg-primary text-white rounded-full shadow-[0_4px_15px_rgba(230,57,70,0.4)] flex items-center justify-center border-2 border-[#2C254D] transition-all hover:scale-105 active:scale-95"
         >
-          {isChatbotOpen ? <X size={32} /> : <MessageCircle size={32} />}
+          {isChatbotOpen ? <X size={32} /> : <Bot size={32} />}
           {!isChatbotOpen && (
             <span className="absolute -top-1 -right-1 w-4 h-4 bg-primary rounded-full border-2 border-[#F4EFEA] animate-pulse"></span>
           )}

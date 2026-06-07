@@ -4,6 +4,7 @@ import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import PublicProfile from "./pages/PublicProfile";
 import AccountSettings from "./pages/AccountSettings";
+import AiChat from "./pages/AiChat";
 import { ProtectedRoute } from "./components/layout/ProtectedRoute";
 
 function App() {
@@ -28,11 +29,19 @@ function App() {
             </ProtectedRoute>
           } 
         />
-        {/* Aquí agregaremos más rutas en el futuro */}
+        <Route 
+          path="/chat" 
+          element={
+            <ProtectedRoute>
+              <AiChat />
+            </ProtectedRoute>
+          } 
+        />
+        <Route path="/p/:id/chat" element={<AiChat isPublic={true} />} />
+        <Route path="/p/:id/chat" element={<AiChat isPublic={true} />} />
       </Routes>
     </BrowserRouter>
   );
 }
 
 export default App;
-

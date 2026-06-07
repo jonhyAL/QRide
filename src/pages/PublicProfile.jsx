@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { Heartbeat, Drop, Ruler, Scales, Phone, WarningCircle, ShieldPlus } from '@phosphor-icons/react';
-import { AlertCircle, User, Car, FileText, Lock, Sparkles, X, MessageCircle, Send } from 'lucide-react';
+import { AlertCircle, User, Car, FileText, Lock, Sparkles, X, MessageCircle, Bot, Send, Maximize2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FloatingShapes } from '../components/ui/floating-shapes';
 
@@ -16,6 +16,7 @@ export default function PublicProfile() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isChatbotOpen, setIsChatbotOpen] = useState(false);
+  const [showBotHint, setShowBotHint] = useState(true);
 
   useEffect(() => {
     const fetchPublicData = async () => {
@@ -241,12 +242,12 @@ export default function PublicProfile() {
             animate={{ opacity: 1, y: 0, scale: 1 }} 
             exit={{ opacity: 0, y: 50, scale: 0.9 }}
             transition={{ duration: 0.3, type: "spring" }}
-            className="fixed bottom-24 right-6 w-full max-w-[360px] z-50"
+            className="fixed inset-0 z-[100] flex flex-col bg-[#161427]/95 backdrop-blur-xl px-4 py-8 md:p-8"
           >
-            <div className="bg-[#2C254D] bg-gradient-to-br from-[#1C1A27] to-[#2C254D] rounded-[2rem] p-6 shadow-[0_30px_60px_rgba(0,0,0,0.4)] border border-white/10 relative overflow-hidden">
+            <div className="bg-[#2C254D] bg-gradient-to-br from-[#1C1A27] to-[#2C254D] rounded-[2rem] w-full h-full flex flex-col p-6 shadow-2xl relative overflow-hidden">
               <div className="absolute top-[-50px] right-[-50px] w-48 h-48 bg-primary/30 rounded-full blur-[3rem]"></div>
               
-              <div className="relative z-10">
+              <div className="relative z-10 flex flex-col flex-1">
                 <div className="flex items-center justify-between mb-6">
                   <div className="flex items-center gap-3">
                     <div className="w-12 h-12 rounded-2xl bg-white/10 backdrop-blur-md flex items-center justify-center border border-white/10 text-white">
@@ -260,18 +261,34 @@ export default function PublicProfile() {
                       <p className="text-sm font-medium text-gray-300">Asistente personal</p>
                     </div>
                   </div>
-                  <button 
-                    onClick={() => setIsChatbotOpen(false)}
-                    className="p-2 bg-white/5 hover:bg-white/10 rounded-full text-white/70 transition-colors"
-                  >
-                    <X size={20} />
-                  </button>
-                </div>
+                  <div className="flex items-center gap-2">
+                      <button 
+                        onClick={() => window.location.href = `/p/${id}/chat`}
+                        className="p-2 bg-white/5 hover:bg-white/10 hover:text-white rounded-full text-white/70 transition-colors"
+                        title="Ampliar Chat"
+                      >
+                        <Maximize2 size={20} />
+                      </button>
+                      <button 
+                        onClick={() => setIsChatbotOpen(false)}
+                        className="p-2 bg-white/5 hover:bg-white/10 hover:text-white rounded-full text-white/70 transition-colors"
+                      >
+                        <X size={24} />
+                      </button>
+                    </div></div>
 
-                <div className="bg-white/10 backdrop-blur-sm border border-white/5 rounded-[1.5rem] p-5 mb-5 rounded-tl-sm h-[180px] overflow-y-auto">
-                  <p className="text-sm text-white/90 font-medium leading-relaxed">
-                    ¡Hola! Soy QRide AI y estaré aquí para guiarte frente a esta emergencia o darte apoyo si eres el primero en responder. ¿Necesitas saber cómo reaccionar?
-                  </p>
+                <div className="bg-white/10 backdrop-blur-sm border border-white/5 rounded-[1.5rem] p-5 mb-5 rounded-tl-sm flex-1 overflow-y-auto">
+                  <div className="text-sm text-white/90 font-medium leading-relaxed space-y-2">
+                      <p className="font-bold text-red-400 flex items-center gap-1">
+                        <AlertCircle size={16} /> Modo Emergencia Activado
+                      </p>
+                      <p>
+                        Hola, soy <strong>QRide AI</strong>. He analizado la ficha médica de este paciente.
+                      </p>
+                      <p className="text-white/70">
+                        Haz clic en <strong>"Ampliar Chat"</strong> para hacerme preguntas sobre sus preexistencias, alergias, o para recibir instrucciones precisas de primeros auxilios según su perfil clínico.
+                      </p>
+                    </div>
                 </div>
 
                 <div className="relative">
@@ -294,15 +311,41 @@ export default function PublicProfile() {
         )}
       </AnimatePresence>
 
+      {/* Sugerencia para abrir el Bot */}
+      <AnimatePresence>
+        {!isChatbotOpen && showBotHint && (
+          <motion.div
+            initial={{ opacity: 0, y: 10, scale: 0.9, originX: 1, originY: 1 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 10, scale: 0.9 }}
+            className="fixed bottom-[5.25rem] right-[5rem] z-50 bg-[#E5E5EA] text-black px-4 py-3 shadow-[0_8px_25px_rgba(0,0,0,0.25)] max-w-[240px] pointer-events-auto"
+            style={{ borderRadius: '20px 20px 4px 20px' }}
+          >
+            {/* Pequeña colita simulando sms de iPhone */}
+            <div className="absolute -right-5 bottom-0 w-8 h-6 bg-[#E5E5EA]" style={{ clipPath: 'polygon(0 0, 0% 100%, 100% 100%)', borderBottomRightRadius: '16px' }}></div>
+            
+            <button 
+              onClick={() => setShowBotHint(false)}
+              className="absolute -top-3 -left-2 bg-white hover:bg-gray-100 text-gray-500 rounded-full p-1 shadow-md border border-gray-200 transition-colors z-10"
+            >
+              <X size={14} strokeWidth={3} />
+            </button>
+            <p className="text-[14px] font-medium leading-snug relative z-10">
+              ¿No sabes cómo ayudar? Tócame y te indicaré qué hacer paso a paso.
+            </p>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <motion.button
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
-        onClick={() => setIsChatbotOpen(!isChatbotOpen)}
-        className="fixed bottom-6 right-6 z-50 w-14 h-14 bg-[#2C254D] text-white rounded-full shadow-2xl flex items-center justify-center border-2 border-white/20 transition-all hover:shadow-[0_0_20px_rgba(44,37,77,0.5)]"
+        onClick={() => { setIsChatbotOpen(!isChatbotOpen); setShowBotHint(false); }}
+        className="fixed bottom-6 right-5 z-50 w-16 h-16 bg-[#2C254D] text-white rounded-full shadow-[0_10px_40px_rgba(0,0,0,0.5)] flex items-center justify-center border-2 border-white/20 transition-all hover:scale-105 active:scale-95"
       >
-        {isChatbotOpen ? <X size={24} /> : <MessageCircle size={24} />}
+        {isChatbotOpen ? <X size={28} /> : <Bot size={28} />}
         {!isChatbotOpen && (
-          <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full border-2 border-[#F4EFEA] animate-pulse"></span>
+          <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full border-2 border-[#161427] animate-pulse shadow-lg"></span>
         )}
       </motion.button>
 
