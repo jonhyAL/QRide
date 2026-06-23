@@ -193,13 +193,17 @@ export function VehiclesModal({ isOpen, onClose, user }) {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-bold text-secondary/80 mb-2">Placa (Matrícula)</label>
-                      <input 
-                        type="text"
-                        value={formData.plate}
-                        onChange={(e) => setFormData({...formData, plate: e.target.value})}
-                        className="w-full bg-[#F4EFEA] border-none rounded-xl px-4 py-3 text-secondary focus:ring-2 focus:ring-primary"
-                        placeholder="Ej. AB-1234-C"
+                        <label className="block text-sm font-bold text-secondary/80 mb-2">
+                          Placa (Matrícula)
+                          {['bicicleta', 'patinete', 'scooter'].includes(formData.type) && ' (Opcional)'}
+                        </label>
+                        <input 
+                          type="text"
+                          value={formData.plate}
+                          onChange={(e) => setFormData({...formData, plate: e.target.value})}
+                          className="w-full bg-[#F4EFEA] border-none rounded-xl px-4 py-3 text-secondary focus:ring-2 focus:ring-primary"
+                          placeholder={['bicicleta', 'patinete', 'scooter'].includes(formData.type) ? "No aplica" : "Ej. AB-1234-C"}
+                          required={!['bicicleta', 'patinete', 'scooter'].includes(formData.type)}
                       />
                     </div>
                   </div>

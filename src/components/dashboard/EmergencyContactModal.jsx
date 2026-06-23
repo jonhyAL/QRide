@@ -5,10 +5,12 @@ import { supabase } from '../../lib/supabase';
 
 export function EmergencyContactModal({ isOpen, onClose, user, onSave }) {
   const [loading, setLoading] = useState(false);
+  const [showSecondaryPhone, setShowSecondaryPhone] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     relationship: '',
     phone: '',
+    secondaryPhone: '',
   });
 
   const handleChange = (e) => {
@@ -27,11 +29,13 @@ export function EmergencyContactModal({ isOpen, onClose, user, onSave }) {
           name: formData.name,
           relationship: formData.relationship,
           phone: formData.phone,
+          secondary_phone: showSecondaryPhone && formData.secondaryPhone ? formData.secondaryPhone : null,
         }]);
 
       if (error) throw error;
 
-      setFormData({ name: '', relationship: '', phone: '' }); // Limpiar formulario
+      setFormData({ name: '', relationship: '', phone: '', secondaryPhone: '' }); // Limpiar formulario
+      setShowSecondaryPhone(false);
       onSave(); // Refrescar datos en el dashboard
       onClose(); // Cerrar modal
     } catch (error) {
@@ -95,13 +99,33 @@ export function EmergencyContactModal({ isOpen, onClose, user, onSave }) {
 
               {/* Teléfono */}
               <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Número de Teléfono</label>
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Número de Teléfono (Principal)</label>
                 <input
                   type="tel" name="phone" required placeholder="Ej. +34 600..."
                   value={formData.phone} onChange={handleChange}
                   className="w-full bg-bg-light border-none rounded-xl px-4 py-3.5 text-secondary font-bold focus:ring-2 focus:ring-primary focus:bg-white transition-all outline-none"
                 />
               </div>
+
+              {/* Teléfono Secundario */}
+              {showSecondaryPhone ? (
+                  <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}>
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Número de Teléfono (Secundario)</label>
+                    <input
+                      type="tel" name="secondaryPhone" placeholder="Opcional. Ej. +34 600..."
+                      value={formData.secondaryPhone} onChange={handleChange}
+                      className="w-full bg-bg-light border-none rounded-xl px-4 py-3.5 text-secondary font-bold focus:ring-2 focus:ring-primary focus:bg-white transition-all outline-none"
+                    />
+                  </motion.div>
+              ) : (
+                  <button 
+                    type="button" 
+                    onClick={() => setShowSecondaryPhone(true)}
+                    className="text-primary text-sm font-bold mt-2 hover:underline"
+                  >
+                      + Añadir número alternativo
+                  </button>
+              )}
 
               {/* Acciones */}
               <div className="flex gap-4 pt-4 mt-6">

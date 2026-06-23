@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { Heartbeat, Drop, Ruler, Scales, Phone, WarningCircle, ShieldPlus } from '@phosphor-icons/react';
-import { AlertCircle, User, Car, FileText, Lock, Sparkles, X, MessageCircle, Bot, Send, Maximize2 } from 'lucide-react';
+import { Heartbeat, Drop, Ruler, Scales, ShieldPlus, FirstAid } from '@phosphor-icons/react';
+import { AlertCircle, User, Car, FileText, Phone, Sparkles, X, Maximize2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FloatingShapes } from '../components/ui/floating-shapes';
 
@@ -13,10 +13,12 @@ export default function PublicProfile() {
   const [contacts, setContacts] = useState([]);
   const [vehicles, setVehicles] = useState([]);
   const [documents, setDocuments] = useState([]);
+  const [hospitals, setHospitals] = useState([]);
+  const [allergies, setAllergies] = useState([]);
+  const [conditions, setConditions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isChatbotOpen, setIsChatbotOpen] = useState(false);
-  const [showBotHint, setShowBotHint] = useState(true);
 
   useEffect(() => {
     const fetchPublicData = async () => {
@@ -34,10 +36,30 @@ export default function PublicProfile() {
         }
         
         setProfile(profileRes.data || {});
-        setMedicalRecord(recordRes.data || {});
+        
+        const medRecord = recordRes.data || {};
+        setMedicalRecord(medRecord);
+        
         setContacts(contactsRes.data || []);
         setVehicles(vehiclesRes.data || []);
         setDocuments(docsRes.data || []);
+
+        try {
+            setAllergies(medRecord.allergies_list || []);
+            setConditions(medRecord.chronic_conditions_list || []);
+            
+            const hList = medRecord.hospitals_list || [];
+            if (hList.length === 0 && (medRecord.nss || medRecord.preferred_hospital)) {
+                hList.push({
+                    id: 1,
+                    name: medRecord.preferred_hospital || 'Hospital',
+                    nss: medRecord.nss || '',
+                    is_primary: true
+                });
+            }
+            setHospitals(hList);
+        } catch(e) {}
+
       } catch (err) {
         console.error(err);
         setError('No se pudo acceder a la información de este código QR.');
@@ -50,7 +72,7 @@ export default function PublicProfile() {
   }, [id]);
 
   if (loading) return (
-    <div className="min-h-screen bg-red-600 flex items-center justify-center">
+    <div className="min-h-screen bg-blue-900 flex items-center justify-center">
       <div className="w-12 h-12 border-4 border-white/30 border-t-white rounded-full animate-spin"></div>
     </div>
   );
@@ -64,19 +86,20 @@ export default function PublicProfile() {
   );
 
   const globalEmergencyNumbers = [
-    { name: 'Emergencias', phone: '911', icon: <WarningCircle size={24} weight="fill" />, color: 'bg-red-500 hover:bg-red-600' },
-    { name: 'Policía / Denuncia', phone: '089', icon: <ShieldPlus size={24} weight="fill" />, color: 'bg-blue-600 hover:bg-blue-700' },
-    { name: 'Atención IMSS', phone: '800 623 2323', icon: <Heartbeat size={24} weight="fill" />, color: 'bg-emerald-600 hover:bg-emerald-700' },
-    { name: 'Atención ISSSTE', phone: '55 4000 1000', icon: <Heartbeat size={24} weight="fill" />, color: 'bg-teal-600 hover:bg-teal-700' },
+    { name: 'Emergencias Integrales', phone: '911', icon: <FirstAid size={24} weight="fill" />, color: 'bg-emerald-600 hover:bg-emerald-700' },
+    { name: 'Policía / Denuncia', phone: '089', icon: <ShieldPlus size={24} weight="fill" />, color: 'bg-blue-600 hover:bg-blue-700' }
   ];
 
+  const primaryHospital = hospitals.find(h => h.is_primary) || hospitals[0];
+  const otherHospitals = hospitals.filter(h => h.id !== primaryHospital?.id);
+
   return (
-    <div className="min-h-screen bg-red-600 text-white font-sans selection:bg-black selection:text-white pb-28 relative overflow-hidden">
+    <div className="min-h-screen bg-sky-900 text-white font-sans selection:bg-black selection:text-white pb-28 relative overflow-hidden">
       <FloatingShapes variant="emergency" />
-      <div className="bg-black/20 backdrop-blur-md sticky top-0 z-50 p-4 text-center border-b border-white/10 shadow-xl">
+      <div className="bg-white/10 backdrop-blur-md sticky top-0 z-50 p-4 text-center border-b border-white/10 shadow-xl">
         <p className="font-black text-sm md:text-base tracking-widest uppercase flex items-center justify-center gap-2">
-          <Heartbeat size={20} weight="fill" className="animate-pulse" />
-          Perfil de Emergencia
+          <FirstAid size={20} weight="fill" className="text-emerald-400" />
+          Ficha de Rescate y Asistencia
         </p>
       </div>
 
@@ -98,10 +121,10 @@ export default function PublicProfile() {
 
         {/* Telefónos Globales de Emergencia */}
         <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="bg-white text-secondary rounded-[2rem] p-6 shadow-2xl">
-          <h2 className="text-xl md:text-2xl font-black mb-4 border-b border-gray-100 pb-4">Teléfonos de Ayuda Oficial</h2>
+          <h2 className="text-xl md:text-2xl font-black mb-4 border-b border-gray-100 pb-4">Teléfonos de Ayuda Rápida</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {globalEmergencyNumbers.map((num, i) => (
-              <a key={i} href={`tel:${num.phone.replace(/\s+/g, '')}`} className={`${num.color} text-white p-4 rounded-2xl flex items-center gap-4 transition-all active:scale-95 shadow-md`}>
+              <a key={i} href={`tel:${num.phone.replace(/\s+/g, '')}`} className={`${num.color} text-white p-4 rounded-2xl flex items-center gap-4 transition-all hover:scale-[1.02] active:scale-95 shadow-md`}>
                 <div className="p-2 bg-white/20 rounded-xl">
                   {num.icon}
                 </div>
@@ -115,64 +138,111 @@ export default function PublicProfile() {
         </motion.div>
 
         <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.1 }} className="bg-white text-secondary rounded-[2rem] p-6 shadow-2xl">
-          <h2 className="text-2xl md:text-3xl font-black mb-6 border-b border-gray-100 pb-4">Ficha Vital</h2>
+          <h2 className="text-2xl md:text-3xl font-black mb-6 border-b border-gray-100 pb-4">Datos Biométricos</h2>
           
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="bg-red-50 p-4 justify-center items-center flex flex-col rounded-2xl">
-              <Drop size={24} weight="fill" className="text-red-500 mb-1" />
-              <span className="text-[10px] font-extrabold text-red-900/50 uppercase tracking-widest mb-1">Sangre</span>
-              <span className="text-2xl font-black text-red-950">{medicalRecord.blood_type || '--'}</span>
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="bg-rose-50 p-4 justify-center items-center flex flex-col rounded-2xl">
+              <Drop size={24} weight="fill" className="text-rose-500 mb-1" />
+              <span className="text-[10px] font-extrabold text-rose-900/50 uppercase tracking-widest mb-1">Sangre</span>
+              <span className="text-2xl font-black text-rose-950">{medicalRecord.blood_type || '--'}</span>
             </div>
             <div className="bg-emerald-50 p-4 justify-center items-center flex flex-col rounded-2xl">
               <Scales size={24} weight="fill" className="text-emerald-500 mb-1" />
               <span className="text-[10px] font-extrabold text-emerald-900/50 uppercase tracking-widest mb-1">Peso</span>
               <span className="text-2xl font-black text-emerald-950 flex items-baseline gap-1">{medicalRecord.weight || '--'}<span className="text-sm font-bold text-emerald-900/50">kg</span></span>
             </div>
-            <div className="bg-blue-50 p-4 justify-center items-center flex flex-col rounded-2xl">
-              <Ruler size={24} weight="fill" className="text-blue-500 mb-1" />
-              <span className="text-[10px] font-extrabold text-blue-900/50 uppercase tracking-widest mb-1">Estatura</span>
-              <span className="text-2xl font-black text-blue-950 flex items-baseline gap-1">{medicalRecord.height || '--'}<span className="text-sm font-bold text-blue-900/50">m</span></span>
+            <div className="bg-sky-50 p-4 justify-center items-center flex flex-col rounded-2xl">
+              <Ruler size={24} weight="fill" className="text-sky-500 mb-1" />
+              <span className="text-[10px] font-extrabold text-sky-900/50 uppercase tracking-widest mb-1">Estatura</span>
+              <span className="text-2xl font-black text-sky-950 flex items-baseline gap-1">{medicalRecord.height || '--'}<span className="text-sm font-bold text-sky-900/50">m</span></span>
             </div>
           </div>
 
-          {(medicalRecord.allergies || medicalRecord.medications || medicalRecord.chronic_conditions) && (
-            <div className="mt-6 space-y-4">
-              {medicalRecord.allergies && (
+          <div className="mt-6 space-y-4">
+              {/* Alergias */}
+              {allergies.length > 0 && (
                 <div className="bg-orange-50 rounded-2xl p-4 border border-orange-100">
-                  <h4 className="text-orange-800 font-extrabold text-xs uppercase tracking-widest mb-1">Alergias</h4>
-                  <p className="text-orange-950 font-bold whitespace-pre-wrap">{medicalRecord.allergies}</p>
+                  <h4 className="text-orange-800 font-extrabold text-xs uppercase tracking-widest mb-2">Alergias Detectadas</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {allergies.map((a, i) => (
+                      <span key={i} className="bg-orange-200 text-orange-950 px-3 py-1 rounded-lg text-sm font-bold">{a}</span>
+                    ))}
+                  </div>
                 </div>
               )}
-              {medicalRecord.medications && (
+
+              {/* Enfermedades Crónicas */}
+              {conditions.length > 0 && (
                 <div className="bg-blue-50 rounded-2xl p-4 border border-blue-100">
-                  <h4 className="text-blue-800 font-extrabold text-xs uppercase tracking-widest mb-1">Medicamentos Actuales</h4>
-                  <p className="text-blue-950 font-bold whitespace-pre-wrap">{medicalRecord.medications}</p>
+                  <h4 className="text-blue-800 font-extrabold text-xs uppercase tracking-widest mb-2">Padecimientos Crónicos</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {conditions.map((c, i) => (
+                      <span key={i} className="bg-blue-200 text-blue-950 px-3 py-1 rounded-lg text-sm font-bold">{c}</span>
+                    ))}
+                  </div>
                 </div>
               )}
-              {medicalRecord.chronic_conditions && (
-                <div className="bg-red-50 rounded-2xl p-4 border border-red-100">
-                  <h4 className="text-red-800 font-extrabold text-xs uppercase tracking-widest mb-1">Enfermedades Crónicas</h4>
-                  <p className="text-red-950 font-bold whitespace-pre-wrap">{medicalRecord.chronic_conditions}</p>
+
+              {medicalRecord.medications && (
+                <div className="bg-emerald-50 rounded-2xl p-4 border border-emerald-100">
+                  <h4 className="text-emerald-800 font-extrabold text-xs uppercase tracking-widest mb-1">Tratamiento Actual</h4>
+                  <p className="text-emerald-950 font-bold whitespace-pre-wrap">{medicalRecord.medications}</p>
                 </div>
               )}
-            </div>
-          )}
+          </div>
         </motion.div>
+
+        {primaryHospital && (
+          <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.15 }} className="bg-white text-secondary rounded-[2rem] p-6 shadow-2xl">
+            <h2 className="text-xl md:text-2xl font-black mb-4">Información Hospitalaria</h2>
+            <div className="bg-indigo-50 border-2 border-indigo-200 rounded-2xl p-5 mb-4">
+              <span className="text-indigo-600 text-xs font-bold uppercase tracking-widest flex items-center gap-1 mb-1">
+                ⭐ Hospital Prioritario
+              </span>
+              <h3 className="font-black text-xl text-indigo-950">{primaryHospital.name}</h3>
+              {primaryHospital.nss && <p className="text-sm font-medium text-indigo-800 mt-1">NSS / Seguro: <strong>{primaryHospital.nss}</strong></p>}
+            </div>
+
+            {otherHospitals.length > 0 && (
+              <div className="mt-4">
+                <h4 className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-3">Otras opciones inscritas</h4>
+                <div className="space-y-2">
+                  {otherHospitals.map((h, i) => (
+                    <div key={i} className="bg-gray-50 rounded-xl p-3 border border-gray-200 flex justify-between items-center">
+                      <span className="font-bold text-gray-700">{h.name}</span>
+                      {h.nss && <span className="text-xs font-medium text-gray-500">NSS: {h.nss}</span>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </motion.div>
+        )}
 
         {contacts?.length > 0 && (
           <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.2 }} className="bg-white text-secondary rounded-[2rem] p-6 shadow-2xl">
-            <h2 className="text-xl md:text-2xl font-black mb-4">Contactos de Emergencia Personales</h2>
-            <div className="space-y-3">
+            <h2 className="text-xl md:text-2xl font-black mb-4">Red de Contactos Vitales</h2>
+            <div className="space-y-4">
               {contacts.map(contact => (
-                <div key={contact.id} className="bg-bg-light rounded-2xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 border border-gray-100">
-                  <div>
-                    <h3 className="font-black text-lg">{contact.name}</h3>
-                    <p className="text-sm font-bold text-gray-500 uppercase tracking-widest">{contact.relationship}</p>
+                <div key={contact.id} className="bg-gray-50 rounded-2xl p-4 border border-gray-200">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div>
+                      <h3 className="font-black text-lg">{contact.name}</h3>
+                      <p className="text-sm font-bold text-gray-500 uppercase tracking-widest">{contact.relationship}</p>
+                    </div>
+                    <div className="flex flex-col gap-2 w-full md:w-auto">
+                      <a href={`tel:${contact.phone}`} className="flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-900 transition-colors text-white py-2.5 px-6 rounded-xl font-bold w-full shadow-sm">
+                        <Phone size={18} weight="fill" />
+                        Llamar Principal
+                      </a>
+                      {contact.secondary_phone && (
+                        <a href={`tel:${contact.secondary_phone}`} className="flex items-center justify-center gap-2 bg-white border border-gray-200 hover:bg-gray-50 transition-colors text-slate-800 py-2.5 px-6 rounded-xl font-bold w-full shadow-sm">
+                          <Phone size={18} />
+                          Alternativo
+                        </a>
+                      )}
+                    </div>
                   </div>
-                  <a href={`tel:${contact.phone}`} className="flex items-center justify-center gap-2 bg-black hover:bg-black/80 transition-colors text-white py-3 px-6 rounded-xl font-bold w-full md:w-auto shadow-md">
-                    <Phone size={20} weight="fill" />
-                    Llamar al Contacto
-                  </a>
                 </div>
               ))}
             </div>
@@ -182,20 +252,21 @@ export default function PublicProfile() {
         {vehicles?.length > 0 && (
           <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.3 }} className="bg-white text-secondary rounded-[2rem] p-6 shadow-2xl">
             <h2 className="text-xl md:text-2xl font-black mb-4 flex items-center gap-2">
-              <Car size={24} className="text-blue-500"/> Vehículos Asociados
+              <Car size={24} className="text-blue-500"/> Vehículo en Uso
             </h2>
             <div className="space-y-3">
               {vehicles.map(v => (
-                <div key={v.id} className="bg-gray-50 rounded-2xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 border border-gray-200">
+                <div key={v.id} className="bg-sky-50 rounded-2xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 border border-sky-100">
                   <div>
                     <h3 className="font-bold text-lg">{v.make} {v.model} ({v.year})</h3>
-                    <p className="text-sm font-medium text-blue-500">{v.plates}</p>
+                    {v.plates && <p className="text-sm font-medium text-sky-700">Placas: {v.plates}</p>}
+                    {!v.plates && <p className="text-sm font-medium text-gray-500 italic">Vehículo sin placa</p>}
                   </div>
                   {(v.insurance_provider || v.policy_number) && (
-                    <div className="md:text-right border-l-2 border-blue-500/20 pl-4 md:border-l-0 md:pl-0">
-                      <p className="text-sm text-gray-500 font-bold uppercase tracking-wider">Seguro</p>
-                      <p className="font-bold">{v.insurance_provider || 'Sin especificar'}</p>
-                      {v.policy_number && <p className="text-xs">Pol: {v.policy_number}</p>}
+                    <div className="md:text-right border-l-2 border-sky-200 pl-4 md:border-l-0 md:pl-0">
+                      <p className="text-sm text-gray-500 font-bold uppercase tracking-wider">Aseguradora</p>
+                      <p className="font-bold text-sky-950">{v.insurance_provider || 'Sin especificar'}</p>
+                      {v.policy_number && <p className="text-xs text-sky-800">Pol: {v.policy_number}</p>}
                     </div>
                   )}
                 </div>
@@ -204,151 +275,7 @@ export default function PublicProfile() {
           </motion.div>
         )}
 
-        {documents?.length > 0 && (
-          <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.4 }} className="bg-white text-secondary rounded-[2rem] p-6 shadow-2xl">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-2">
-              <h2 className="text-xl md:text-2xl font-black flex items-center gap-2">
-                <FileText size={24} className="text-purple-500"/> Documentos Subidos
-              </h2>
-            </div>
-            
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {documents.map(doc => {
-                return (
-                  <button key={doc.id} onClick={async () => {
-                    const { data, error } = await supabase.storage.from('documents').createSignedUrl(doc.file_path, 60);
-                    if (data?.signedUrl) window.open(data.signedUrl, '_blank');
-                    else alert('No se pudo abrir el documento.');
-                  }} className="bg-gray-50 hover:bg-purple-50 text-left rounded-2xl p-4 flex items-center gap-3 border border-gray-200 transition-all active:scale-95">
-                    <div className="bg-red-100 text-red-500 p-2 rounded-xl"><FileText size={20}/></div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-bold text-sm truncate">{doc.title}</p>
-                      <p className="text-xs opacity-60 uppercase">{doc.document_type || 'PDF'}</p>
-                    </div>
-                  </button>
-                )
-              })}
-            </div>
-          </motion.div>
-        )}
-
       </div>
-
-      {/* Burbuja Flotante del Chatbot QRide AI */}
-      <AnimatePresence>
-        {isChatbotOpen && (
-          <motion.div 
-            initial={{ opacity: 0, y: 50, scale: 0.9 }} 
-            animate={{ opacity: 1, y: 0, scale: 1 }} 
-            exit={{ opacity: 0, y: 50, scale: 0.9 }}
-            transition={{ duration: 0.3, type: "spring" }}
-            className="fixed inset-0 z-[100] flex flex-col bg-[#161427]/95 backdrop-blur-xl px-4 py-8 md:p-8"
-          >
-            <div className="bg-[#2C254D] bg-gradient-to-br from-[#1C1A27] to-[#2C254D] rounded-[2rem] w-full h-full flex flex-col p-6 shadow-2xl relative overflow-hidden">
-              <div className="absolute top-[-50px] right-[-50px] w-48 h-48 bg-primary/30 rounded-full blur-[3rem]"></div>
-              
-              <div className="relative z-10 flex flex-col flex-1">
-                <div className="flex items-center justify-between mb-6">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-2xl bg-white/10 backdrop-blur-md flex items-center justify-center border border-white/10 text-white">
-                      <Sparkles size={24} className="text-white animate-pulse" />
-                    </div>
-                    <div>
-                      <h3 className="text-xl font-extrabold text-white flex items-center gap-2">
-                        QRide AI
-                        <span className="text-[9px] font-black bg-red-500 text-white px-2 py-0.5 rounded-full uppercase tracking-widest whitespace-nowrap">BETA</span>
-                      </h3>
-                      <p className="text-sm font-medium text-gray-300">Asistente personal</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                      <button 
-                        onClick={() => window.location.href = `/p/${id}/chat`}
-                        className="p-2 bg-white/5 hover:bg-white/10 hover:text-white rounded-full text-white/70 transition-colors"
-                        title="Ampliar Chat"
-                      >
-                        <Maximize2 size={20} />
-                      </button>
-                      <button 
-                        onClick={() => setIsChatbotOpen(false)}
-                        className="p-2 bg-white/5 hover:bg-white/10 hover:text-white rounded-full text-white/70 transition-colors"
-                      >
-                        <X size={24} />
-                      </button>
-                    </div></div>
-
-                <div className="bg-white/10 backdrop-blur-sm border border-white/5 rounded-[1.5rem] p-5 mb-5 rounded-tl-sm flex-1 overflow-y-auto">
-                  <div className="text-sm text-white/90 font-medium leading-relaxed space-y-2">
-                      <p className="font-bold text-red-400 flex items-center gap-1">
-                        <AlertCircle size={16} /> Modo Emergencia Activado
-                      </p>
-                      <p>
-                        Hola, soy <strong>QRide AI</strong>. He analizado la ficha médica de este paciente.
-                      </p>
-                      <p className="text-white/70">
-                        Haz clic en <strong>"Ampliar Chat"</strong> para hacerme preguntas sobre sus preexistencias, alergias, o para recibir instrucciones precisas de primeros auxilios según su perfil clínico.
-                      </p>
-                    </div>
-                </div>
-
-                <div className="relative">
-                  <input 
-                    type="text" 
-                    placeholder="Escribe aquí..." 
-                    disabled
-                    className="w-full bg-white/5 border border-white/10 rounded-[1.25rem] pl-5 pr-14 py-3.5 text-white placeholder-gray-400 font-medium focus:outline-none transition-all cursor-not-allowed text-sm"
-                  />
-                  <button 
-                    disabled
-                    className="absolute right-2 top-1/2 -translate-y-1/2 p-2.5 bg-white/10 rounded-xl text-white/50 opacity-60 cursor-not-allowed"
-                  >
-                    <Send size={18} />
-                  </button>
-                </div>
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Sugerencia para abrir el Bot */}
-      <AnimatePresence>
-        {!isChatbotOpen && showBotHint && (
-          <motion.div
-            initial={{ opacity: 0, y: 10, scale: 0.9, originX: 1, originY: 1 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 10, scale: 0.9 }}
-            className="fixed bottom-[5.25rem] right-[5rem] z-50 bg-[#E5E5EA] text-black px-4 py-3 shadow-[0_8px_25px_rgba(0,0,0,0.25)] max-w-[240px] pointer-events-auto"
-            style={{ borderRadius: '20px 20px 4px 20px' }}
-          >
-            {/* Pequeña colita simulando sms de iPhone */}
-            <div className="absolute -right-5 bottom-0 w-8 h-6 bg-[#E5E5EA]" style={{ clipPath: 'polygon(0 0, 0% 100%, 100% 100%)', borderBottomRightRadius: '16px' }}></div>
-            
-            <button 
-              onClick={() => setShowBotHint(false)}
-              className="absolute -top-3 -left-2 bg-white hover:bg-gray-100 text-gray-500 rounded-full p-1 shadow-md border border-gray-200 transition-colors z-10"
-            >
-              <X size={14} strokeWidth={3} />
-            </button>
-            <p className="text-[14px] font-medium leading-snug relative z-10">
-              ¿No sabes cómo ayudar? Tócame y te indicaré qué hacer paso a paso.
-            </p>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      <motion.button
-        whileHover={{ scale: 1.05 }}
-        whileTap={{ scale: 0.95 }}
-        onClick={() => { setIsChatbotOpen(!isChatbotOpen); setShowBotHint(false); }}
-        className="fixed bottom-6 right-5 z-50 w-16 h-16 bg-[#2C254D] text-white rounded-full shadow-[0_10px_40px_rgba(0,0,0,0.5)] flex items-center justify-center border-2 border-white/20 transition-all hover:scale-105 active:scale-95"
-      >
-        {isChatbotOpen ? <X size={28} /> : <Bot size={28} />}
-        {!isChatbotOpen && (
-          <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full border-2 border-[#161427] animate-pulse shadow-lg"></span>
-        )}
-      </motion.button>
-
     </div>
   );
 }
