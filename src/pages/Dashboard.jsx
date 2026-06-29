@@ -612,81 +612,7 @@ return (
         )}
       </AnimatePresence>
 
-      {/* Burbuja Flotante del Chatbot QRide AI */}
-      <AnimatePresence>
-        {isChatbotOpen && (
-          <motion.div 
-            initial={{ opacity: 0, y: 50, scale: 0.9 }} 
-            animate={{ opacity: 1, y: 0, scale: 1 }} 
-            exit={{ opacity: 0, y: 50, scale: 0.9 }}
-            transition={{ duration: 0.3, type: "spring" }}
-            className="fixed inset-0 z-[100] flex flex-col bg-[#161427]/95 backdrop-blur-xl px-4 py-8 md:p-8"
-          >
-            <div className="bg-secondary bg-gradient-to-br from-[#1C1A27] to-secondary rounded-[2rem] w-full h-full flex flex-col p-6 shadow-2xl relative overflow-hidden">
-              {/* Gradiente estilo AI cósmico */}
-              <div className="absolute top-[-50px] right-[-50px] w-48 h-48 bg-primary/30 rounded-full blur-[3rem]"></div>
-              
-              <div className="relative z-10 flex flex-col flex-1">
-                {/* Header del Chatbot */}
-                <div className="flex items-center justify-between mb-6">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-2xl bg-white/10 backdrop-blur-md flex items-center justify-center border border-white/10 text-white">
-                      <Sparkles size={24} className="text-white animate-pulse" />
-                    </div>
-                    <div>
-                      <h3 className="text-xl font-extrabold text-white flex items-center gap-2">
-                        QRide AI
-                        <span className="text-[9px] font-black bg-primary text-white px-2 py-0.5 rounded-full uppercase tracking-widest whitespace-nowrap">BETA</span>
-                      </h3>
-                      <p className="text-sm font-medium text-gray-300">Asistente personal médico</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                      <button 
-                        onClick={() => window.location.href = '/chat'}
-                        className="p-2 bg-white/5 hover:bg-white/10 hover:text-white rounded-full text-white/70 transition-colors"
-                        title="Ampliar Chat"
-                      >
-                        <Maximize2 size={20} />
-                      </button>
-                      <button 
-                        onClick={() => setIsChatbotOpen(false)}
-                        className="p-2 bg-white/5 hover:bg-white/10 hover:text-white rounded-full text-white/70 transition-colors"
-                      >
-                        <X size={24} />
-                      </button>
-                    </div></div>
-
-                {/* Mensaje de bienvenida simulado */}
-                <div className="bg-white/10 backdrop-blur-sm border border-white/5 rounded-[1.5rem] p-5 mb-5 rounded-tl-sm flex-1 overflow-y-auto">
-                  <p className="text-sm text-white/90 font-medium leading-relaxed">
-                    ¡Hola! Estoy en fase de pruebas para pronto ayudarte a analizar tus síntomas, recordarte medicamentos o guiarte en una emergencia usando tu historial. ¿En qué te puedo ayudar hoy?
-                  </p>
-                </div>
-
-                {/* Input Falso */}
-                <div className="relative">
-                  <input 
-                    type="text" 
-                    placeholder="Escribe aquí..." 
-                    disabled
-                    className="w-full bg-white/5 border border-white/10 rounded-[1.25rem] pl-5 pr-14 py-3.5 text-white placeholder-gray-400 font-medium focus:outline-none transition-all cursor-not-allowed text-sm"
-                  />
-                  <button 
-                    disabled
-                    className="absolute right-2 top-1/2 -translate-y-1/2 p-2.5 bg-white/10 rounded-xl text-white/50 opacity-60 cursor-not-allowed"
-                  >
-                    <Send size={18} />
-                  </button>
-                </div>
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      
-        {/* Modal de Confirmación de Emergencia con Deslizador */}
+      {/* Modal de Confirmación de Emergencia con Deslizador */}
         <AnimatePresence>
           {isEmergencySliderOpen && (
             <motion.div
@@ -749,21 +675,7 @@ return (
           )}
         </AnimatePresence>
         
-        {/* Botón Flotante para Abrir Chatbot */}
-      {!isAnyModalOpen && (
-        <motion.button
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          onClick={() => setIsChatbotOpen(!isChatbotOpen)}
-          className="fixed bottom-4 md:bottom-6 right-3 md:right-6 z-[60] w-[4.5rem] h-[4.5rem] bg-primary text-white rounded-full shadow-[0_4px_15px_rgba(230,57,70,0.4)] flex items-center justify-center border-2 border-[#2C254D] transition-all hover:scale-105 active:scale-95"
-        >
-          {isChatbotOpen ? <X size={32} /> : <Bot size={32} />}
-          {!isChatbotOpen && (
-            <span className="absolute -top-1 -right-1 w-4 h-4 bg-primary rounded-full border-2 border-[#F4EFEA] animate-pulse"></span>
-          )}
-        </motion.button>
-      )}
-      {!isAnyModalOpen && <MobileNav onAction={handleSidebarAction} />}
+        {!isAnyModalOpen && <MobileNav onAction={handleSidebarAction} />}
     </div>
   );
 }

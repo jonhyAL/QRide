@@ -4,7 +4,7 @@ import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import PublicProfile from "./pages/PublicProfile";
 import AccountSettings from "./pages/AccountSettings";
-import AiChat from "./pages/AiChat";
+import AdminPanel from "./pages/AdminPanel";
 import { ProtectedRoute } from "./components/layout/ProtectedRoute";
 
 function App() {
@@ -30,15 +30,13 @@ function App() {
           } 
         />
         <Route 
-          path="/chat" 
+          path="/admin" 
           element={
-            <ProtectedRoute>
-              <AiChat />
+            <ProtectedRoute requiredRole="admin">
+              <AdminPanel />
             </ProtectedRoute>
           } 
         />
-        <Route path="/p/:id/chat" element={<AiChat isPublic={true} />} />
-        <Route path="/p/:id/chat" element={<AiChat isPublic={true} />} />
       </Routes>
     </BrowserRouter>
   );

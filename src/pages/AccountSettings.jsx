@@ -373,7 +373,8 @@ export default function AccountSettings() {
           <div className="hidden md:block mt-8 pt-8 border-t border-[#E8DFD8]">
             <button 
               onClick={async () => {
-                await supabase.auth.signOut();
+                await supabase.auth.signOut(); console.info("[LOG DE SEGURIDAD - AUDITORÍA]: Cierre de sesión exitoso");
+              console.info(`[LOG DE SEGURIDAD - AUDITORÍA]: Cierre de sesión exitoso ${new Date().toISOString()}`);
                 navigate('/');
               }}
               className="flex w-full items-center gap-3 px-5 py-4 rounded-2xl text-red-500 hover:bg-red-50 font-bold transition-all"
@@ -651,7 +652,8 @@ export default function AccountSettings() {
       <div className="md:hidden p-4 mb-8">
         <button 
           onClick={async () => {
-             await supabase.auth.signOut();
+             await supabase.auth.signOut(); console.info("[LOG DE SEGURIDAD - AUDITORÍA]: Cierre de sesión exitoso");
+              console.info(`[LOG DE SEGURIDAD - AUDITORÍA]: Cierre de sesión exitoso ${new Date().toISOString()}`);
              navigate('/');
           }}
           className="flex w-full items-center justify-center gap-3 p-4 rounded-2xl bg-white border border-red-100 text-red-500 font-bold shadow-sm"

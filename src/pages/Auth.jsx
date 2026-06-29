@@ -60,9 +60,17 @@ export default function Auth() {
           email,
           password,
         });
+          // SECURITY LOG: Log de Inicio de Sesión
+          console.info(`[LOG DE SEGURIDAD - AUTENTICACIÓN]: Inicio de sesión exitoso ${new Date().toISOString()}`);
+          // SECURITY LOG: Log de Inicio de Sesión
+          console.info(`[LOG DE SEGURIDAD - AUTENTICACIÓN]: Inicio de sesión exitoso ${new Date().toISOString()}`);
         if (error) throw error;
         setMessage("Inicio de sesión exitoso. Redirigiendo...");
-        navigate("/dashboard");
+        if (data?.user?.user_metadata?.role === 'admin') {
+          navigate("/admin");
+        } else {
+          navigate("/dashboard");
+        }
       } else {
         const { data, error } = await supabase.auth.signUp({
           email,
@@ -74,6 +82,10 @@ export default function Auth() {
             }
           }
         });
+          // SECURITY LOG: Log de Creación de Usuario
+          console.info(`[LOG DE SEGURIDAD - AUDITORIÍA]: Nuevo usuario registrado en el sistema ${new Date().toISOString()}`);
+          // SECURITY LOG: Log de Creación de Usuario
+          console.info(`[LOG DE SEGURIDAD - AUDITORIÍA]: Nuevo usuario registrado en el sistema ${new Date().toISOString()}`);
         if (error) throw error;
         setShowVerifyModal(true);
       }
