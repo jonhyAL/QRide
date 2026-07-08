@@ -96,6 +96,74 @@ export default function Auth() {
     }
   };
 
+    // Ocultar Botpress en Auth más agresivo
+  useEffect(() => {
+    const style = document.createElement('style');
+    style.id = 'hide-botpress-auth';
+    style.innerHTML = `
+      #bp-web-widget, 
+      .bp-widget-widget, 
+      #bp-web-widget-container, 
+      .bp-widget-container, 
+      .bpWrap,
+      .bp-widget-side,
+      [init='botpress'] { 
+        display: none !important; 
+        opacity: 0 !important;
+        visibility: hidden !important;
+        pointer-events: none !important;
+        z-index: -9999 !important;
+      }
+    `;
+    document.head.appendChild(style);
+
+    // Intento secundario: buscar todos los iframes que contengan botpress
+    const hideInterval = setInterval(() => {
+      const bpIframe = document.querySelector('#bp-web-widget');
+      if (bpIframe) {
+        bpIframe.style.setProperty('display', 'none', 'important');
+      }
+      
+      const elements = document.querySelectorAll('[id*="bp-"], .bpWrap, .bp-widget-side, .bp-widget-widget');
+      elements.forEach(el => {
+        el.style.setProperty('display', 'none', 'important');
+      });
+    }, 500);
+
+    return () => {
+      clearInterval(hideInterval);
+      const injectedStyle = document.getElementById('hide-botpress-auth');
+      if (injectedStyle) injectedStyle.remove();
+      
+      const bpIframe = document.querySelector('#bp-web-widget');
+      if (bpIframe) {
+        bpIframe.style.removeProperty('display');
+      }
+    };
+  }, []);
+
+  // Limpiar estilos si navegamos
+  useEffect(() => {
+    return () => {
+      // Restauración explícita para asegurar que Botpress reaparezca
+      const style = document.getElementById('hide-botpress-auth');
+      if (style) style.remove();
+      
+      // Enviar evento de reactivación si botpress está en window
+      if (window.botpressWebChat) {
+        window.botpressWebChat.sendEvent({ type: 'show' });
+      }
+      
+      // Limpiar inline styles
+      const elements = document.querySelectorAll('[id*="bp-"], .bpWrap, .bp-widget-side, .bp-widget-widget');
+      elements.forEach(el => {
+        el.style.removeProperty('display');
+        el.style.removeProperty('opacity');
+        el.style.removeProperty('visibility');
+      });
+    };
+  }, []);
+
   useEffect(() => {
     // GSAP Animation para el formulario derecho (Aceternity styling)
     const elements = rightPanelRef.current.querySelectorAll(".gsap-fade-up");

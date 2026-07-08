@@ -15,6 +15,8 @@ export function MedicalRecordModal({ isOpen, onClose, user, medicalRecord, onSav
     weight: '',
     medications: '',
     medical_notes: '',
+    is_donor: false,
+    blood_donor: false,
   });
 
   // Checkboxes state
@@ -37,6 +39,8 @@ export function MedicalRecordModal({ isOpen, onClose, user, medicalRecord, onSav
         weight: medicalRecord.weight || '',
         medications: medicalRecord.medications || '',
         medical_notes: medicalRecord.medical_notes || '',
+        is_donor: medicalRecord.is_donor || false,
+        blood_donor: medicalRecord.blood_donor || false,
       });
 
       // Parse JSONBs
@@ -77,7 +81,8 @@ export function MedicalRecordModal({ isOpen, onClose, user, medicalRecord, onSav
   }, [medicalRecord]);
 
   const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    const value = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
+    setFormData({ ...formData, [e.target.name]: value });
   };
 
   const handleCheckboxChange = (value, state, setter, setOtherShow) => {
@@ -142,6 +147,8 @@ export function MedicalRecordModal({ isOpen, onClose, user, medicalRecord, onSav
         hospitals_list: hospitals,
         medications: formData.medications,
         medical_notes: formData.medical_notes,
+        is_donor: formData.is_donor || false,
+        blood_donor: formData.blood_donor || false,
         updated_at: new Date().toISOString(),
       };
 
@@ -193,7 +200,30 @@ export function MedicalRecordModal({ isOpen, onClose, user, medicalRecord, onSav
 
             <form onSubmit={handleSubmit} className="space-y-8">
               {/* Biometrics */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="bg-bg-light/60 p-4 rounded-2xl flex items-center justify-between border border-gray-100">
+                    <div>
+                      <h4 className="text-secondary font-bold text-sm">Donador de Órganos</h4>
+                      <p className="text-xs text-gray-500 font-medium mt-0.5">Ayuda a salvar vidas</p>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input type="checkbox" name="is_donor" checked={formData.is_donor || false} onChange={handleChange} className="sr-only peer" />
+                      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                    </label>
+                  </div>
+                  <div className="bg-bg-light/60 p-4 rounded-2xl flex items-center justify-between border border-gray-100">
+                    <div>
+                      <h4 className="text-secondary font-bold text-sm">Donador de Sangre</h4>
+                      <p className="text-xs text-gray-500 font-medium mt-0.5">Muestra en info pública</p>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input type="checkbox" name="blood_donor" checked={formData.blood_donor || false} onChange={handleChange} className="sr-only peer" />
+                      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-500"></div>
+                    </label>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div>
                   <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Tipo de Sangre</label>
                   <select name="blood_type" value={formData.blood_type} onChange={handleChange} className="w-full bg-bg-light border-none rounded-xl px-4 py-3.5 text-secondary font-bold focus:ring-2 focus:ring-primary focus:bg-white outline-none">

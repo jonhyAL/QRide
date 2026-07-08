@@ -17,6 +17,8 @@ export default function AdminPanel() {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [filterField, setFilterField] = useState('all');
+  const [filterValue, setFilterValue] = useState('');
   
   // User Cache and Selection
   const [users, setUsers] = useState({});
@@ -25,8 +27,7 @@ export default function AdminPanel() {
 
   // Form State
   const [formData, setFormData] = useState({});
-  const [manualUserId, setManualUserId] = useState(false);
-  
+    
   // Complex fields for medical_records
   const [allergiesTags, setAllergiesTags] = useState([]);
   const [newAllergy, setNewAllergy] = useState('');
@@ -286,8 +287,7 @@ export default function AdminPanel() {
   const openEdit = (item) => {
     setEditingItem(item);
     setFormData(item);
-    setManualUserId(!Object.keys(users).includes(item.user_id));
-    
+        
     if (activeTab === 'medical_records') {
       setAllergiesTags(item.allergies_list || []);
       setConditionsTags(item.chronic_conditions_list || []);
@@ -304,8 +304,7 @@ export default function AdminPanel() {
     setSelectedFile(null);
     
     let initialForm = { user_id: Object.keys(users)[0] || '' };
-    setManualUserId(Object.keys(users).length === 0);
-    
+        
     if (activeTab === 'medical_records') {
       initialForm = {
         ...initialForm,
@@ -541,10 +540,23 @@ export default function AdminPanel() {
     });
   }, [stats]);
 
-  const filteredData = data.filter(item => 
-    JSON.stringify(item).toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (users[item.user_id] && `${users[item.user_id].first_name} ${users[item.user_id].last_name}`.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  const filteredData = data.filter(item => {
+    let matchesSearch = true;
+    if (searchTerm) {
+      matchesSearch = JSON.stringify(item).toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (users[item.user_id] && `${users[item.user_id].first_name} ${users[item.user_id].last_name}`.toLowerCase().includes(searchTerm.toLowerCase()));
+    }
+    
+    let matchesAdvanced = true;
+    if (filterField !== 'all' && filterValue) {
+      if (item[filterField] !== undefined) {
+         matchesAdvanced = String(item[filterField]).toLowerCase().includes(filterValue.toLowerCase());
+      } else {
+         matchesAdvanced = false;
+      }
+    }
+    return matchesSearch && matchesAdvanced;
+  });
 
   return (
     <div className="min-h-screen bg-[#F4EFEA] font-sans flex relative overflow-hidden text-secondary">
@@ -674,13 +686,14 @@ export default function AdminPanel() {
             ) : activeTab === 'dashboard' ? (
               <div className="space-y-8 pb-10">
                 {/* Metric cards */}
-                <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
                   {[
                     { title: 'Usuarios Únicos', count: uniqueUsersCount, icon: Activity, color: 'from-blue-500 to-indigo-600', text: 'text-blue-600', bg: 'bg-blue-50/70' },
                     { title: 'Fichas Médicas', count: allData.medical_records.length, icon: FileText, color: 'from-red-500 to-rose-600', text: 'text-red-600', bg: 'bg-red-50/70' },
                     { title: 'Contactos Emergencia', count: allData.emergency_contacts.length, icon: Phone, color: 'from-amber-500 to-orange-600', text: 'text-orange-600', bg: 'bg-orange-50/70' },
                     { title: 'Vehículos Registrados', count: allData.vehicles.length, icon: Car, color: 'from-emerald-500 to-teal-600', text: 'text-emerald-600', bg: 'bg-emerald-50/70' },
-                    { title: 'Documentos Adjuntos', count: allData.user_documents.length, icon: FileText, color: 'from-purple-500 to-violet-600', text: 'text-purple-600', bg: 'bg-purple-50/70' }
+                    { title: 'Documentos Adjuntos', count: allData.user_documents.length, icon: FileText, color: 'from-purple-500 to-violet-600', text: 'text-purple-600', bg: 'bg-purple-50/70' },
+                      { title: 'Donadores Órganos', count: stats?.totalDonors || 0, icon: Activity, color: 'from-pink-500 to-pink-600', text: 'text-pink-600', bg: 'bg-pink-50/70' }
                   ].map((card, idx) => (
                     <motion.div
                       key={idx}
@@ -1173,36 +1186,17 @@ export default function AdminPanel() {
                 <div className="bg-[#F4EFEA]/50 p-5 rounded-2xl border border-[#E8DFD8]">
                   <div className="flex items-center justify-between mb-3">
                     <label className="block text-xs font-bold text-secondary uppercase tracking-wider">Paciente / Propietario</label>
-                    <label className="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-primary hover:underline">
-                      <input 
-                        type="checkbox" 
-                        checked={manualUserId} 
-                        onChange={(e) => setManualUserId(e.target.checked)} 
-                        className="rounded text-primary focus:ring-primary h-3.5 w-3.5"
-                      />
-                      <span>Ingresar ID manual</span>
-                    </label>
+                    
                   </div>
 
-                  {manualUserId ? (
-                    <div>
-                      <input 
-                        type="text" 
-                        required 
-                        value={formData.user_id || ''} 
-                        onChange={e => setFormData({ ...formData, user_id: e.target.value })}
-                        className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm font-semibold text-secondary focus:ring-2 focus:ring-primary outline-none" 
-                        placeholder="Ingresa el UUID de Supabase del usuario..."
-                      />
-                      <p className="text-[10px] text-gray-400 font-semibold mt-1 flex items-center gap-1"><Info size={10} /> Copia el UUID de usuario desde Supabase Auth.</p>
-                    </div>
-                  ) : (
+                  
                     <select
-                      required
-                      value={formData.user_id || ''}
-                      onChange={e => setFormData({ ...formData, user_id: e.target.value })}
-                      className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm font-semibold text-secondary focus:ring-2 focus:ring-primary outline-none"
-                    >
+                        required
+                        disabled={!!editingItem}
+                        value={formData.user_id || ''}
+                        onChange={e => setFormData({ ...formData, user_id: e.target.value })}
+                        className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm font-semibold text-secondary focus:ring-2 focus:ring-primary outline-none"
+                      >
                       <option value="" disabled>Selecciona un usuario...</option>
                       {Object.entries(users).map(([id, p]) => (
                         <option key={id} value={id}>
@@ -1210,7 +1204,6 @@ export default function AdminPanel() {
                         </option>
                       ))}
                     </select>
-                  )}
                 </div>
 
                 {/* Form fields depending on selected tab */}
@@ -1462,12 +1455,24 @@ export default function AdminPanel() {
                       </div>
                       <div>
                         <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Marca</label>
-                        <input 
-                          type="text" required placeholder="Ej. Honda"
-                          value={formData.make || ''} 
-                          onChange={e => setFormData({ ...formData, make: e.target.value })}
-                          className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-bold text-secondary focus:ring-2 focus:ring-primary outline-none"
-                        />
+                        <select required value={formData.make || ''} onChange={e => setFormData({ ...formData, make: e.target.value })} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-bold text-secondary focus:ring-2 focus:ring-primary outline-none">
+    <option value="">Selecciona Marca...</option>
+    <option value="Toyota">Toyota</option>
+    <option value="Honda">Honda</option>
+    <option value="Ford">Ford</option>
+    <option value="Chevrolet">Chevrolet</option>
+    <option value="Nissan">Nissan</option>
+    <option value="Volkswagen">Volkswagen</option>
+    <option value="Mazda">Mazda</option>
+    <option value="Kia">Kia</option>
+    <option value="Hyundai">Hyundai</option>
+    <option value="Suzuki">Suzuki</option>
+    <option value="BMW">BMW</option>
+    <option value="Audi">Audi</option>
+    <option value="Mercedes-Benz">Mercedes-Benz</option>
+    <option value="Jeep">Jeep</option>
+    <option value="Otro">Otro...</option>
+  </select>
                       </div>
                       <div>
                         <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Modelo</label>

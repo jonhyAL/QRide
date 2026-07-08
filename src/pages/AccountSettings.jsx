@@ -247,14 +247,14 @@ export default function AccountSettings() {
   };
 
   const renderToggle = ({ label, icon: Icon, description, checked, onChange }) => (
-    <div className="flex items-center justify-between p-4 rounded-2xl bg-[#F4EFEA]/50 border border-[#E8DFD8] hover:border-primary/30 transition-colors">
+    <div className="flex items-center justify-between p-4 rounded-2xl bg-slate-50/50 border border-[#E8DFD8] hover:border-primary/30 transition-colors">
       <div className="flex items-start gap-3">
-        <div className="mt-0.5 text-secondary">
+        <div className="mt-0.5 text-indigo-900">
           <Icon size={20} weight="fill" />
         </div>
         <div>
-          <h4 className="text-sm font-bold text-secondary">{label}</h4>
-          <p className="text-xs text-secondary/60 mt-0.5 leading-relaxed">{description}</p>
+          <h4 className="text-sm font-bold text-indigo-900">{label}</h4>
+          <p className="text-xs text-indigo-900/60 mt-0.5 leading-relaxed">{description}</p>
         </div>
       </div>
       <button 
@@ -262,7 +262,7 @@ export default function AccountSettings() {
         onClick={() => onChange(!checked)}
         className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${checked ? 'bg-primary' : 'bg-secondary/20'}`}
       >
-        <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${checked ? 'translate-x-5' : 'translate-x-0'}`} />
+        <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white/80 backdrop-blur-xl border border-white/50 shadow-sm shadow ring-0 transition duration-200 ease-in-out ${checked ? 'translate-x-5' : 'translate-x-0'}`} />
       </button>
     </div>
   );
@@ -318,23 +318,23 @@ export default function AccountSettings() {
   };
 
   if (loading) return (
-    <div className="min-h-screen bg-[#F4EFEA] flex flex-col items-center justify-center p-6">
+    <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6">
       <div className="w-12 h-12 border-4 border-primary/30 border-t-primary rounded-full animate-spin"></div>
     </div>
   );
 
   return (
-    <div className="min-h-screen bg-[#F4EFEA] text-secondary font-sans pb-20 md:pb-0">
-      <header className="bg-white px-6 py-4 flex items-center shadow-sm sticky top-0 z-30">
+    <div className="min-h-screen bg-slate-50 text-indigo-900 font-sans pb-20 md:pb-0">
+      <header className="bg-white/80 backdrop-blur-xl border border-white/50 shadow-sm px-6 py-4 flex items-center shadow-sm sticky top-0 z-30">
         <button 
           onClick={() => navigate('/dashboard')}
-          className="p-2 mr-4 bg-[#F4EFEA] rounded-xl hover:bg-primary/10 transition-colors text-secondary"
+          className="p-2 mr-4 bg-slate-50 rounded-xl hover:bg-primary/10 transition-colors text-indigo-900"
         >
           <ArrowLeft size={20} weight="bold" />
         </button>
         <div>
           <h1 className="text-xl font-bold">Mi Cuenta</h1>
-          <p className="text-xs text-secondary/60">Configuración y seguridad</p>
+          <p className="text-xs text-indigo-900/60">Configuración y seguridad</p>
         </div>
       </header>
 
@@ -343,28 +343,28 @@ export default function AccountSettings() {
         <div className="md:w-64 flex-shrink-0 grid grid-cols-2 md:flex md:flex-col gap-3 pb-4 md:pb-0">
           <button 
             onClick={() => setActiveTab('profile')}
-            className={`flex flex-col md:flex-row items-center justify-center md:justify-start gap-1.5 md:gap-3 p-3 md:px-5 md:py-4 rounded-2xl transition-all text-center md:text-left ${activeTab === 'profile' ? 'bg-primary text-white font-bold shadow-md' : 'bg-white text-secondary/70 hover:bg-white/60 font-medium'}`}
+            className={`flex flex-col md:flex-row items-center justify-center md:justify-start gap-1.5 md:gap-3 p-3 md:px-5 md:py-4 rounded-2xl transition-all text-center md:text-left ${activeTab === 'profile' ? 'bg-primary text-white font-bold shadow-md' : 'bg-white/80 backdrop-blur-xl border border-white/50 shadow-sm text-indigo-900/70 hover:bg-white/80 backdrop-blur-xl border border-white/50 shadow-sm/60 font-medium'}`}
           >
             <UserList size={20} weight={activeTab === 'profile' ? 'fill' : 'regular'} />
             Datos Personales
           </button>
           <button 
             onClick={() => setActiveTab('security')}
-            className={`flex flex-col md:flex-row items-center justify-center md:justify-start gap-1.5 md:gap-3 p-3 md:px-5 md:py-4 rounded-2xl transition-all text-center md:text-left ${activeTab === 'security' ? 'bg-primary text-white font-bold shadow-md' : 'bg-white text-secondary/70 hover:bg-white/60 font-medium'}`}
+            className={`flex flex-col md:flex-row items-center justify-center md:justify-start gap-1.5 md:gap-3 p-3 md:px-5 md:py-4 rounded-2xl transition-all text-center md:text-left ${activeTab === 'security' ? 'bg-primary text-white font-bold shadow-md' : 'bg-white/80 backdrop-blur-xl border border-white/50 shadow-sm text-indigo-900/70 hover:bg-white/80 backdrop-blur-xl border border-white/50 shadow-sm/60 font-medium'}`}
           >
             <LockKey size={20} weight={activeTab === 'security' ? 'fill' : 'regular'} />
             Seguridad y Acceso
           </button>
           <button 
             onClick={() => setActiveTab('preferences')}
-            className={`flex flex-col md:flex-row items-center justify-center md:justify-start gap-1.5 md:gap-3 p-3 md:px-5 md:py-4 rounded-2xl transition-all text-center md:text-left ${activeTab === 'preferences' ? 'bg-primary text-white font-bold shadow-md' : 'bg-white text-secondary/70 hover:bg-white/60 font-medium'}`}
+            className={`flex flex-col md:flex-row items-center justify-center md:justify-start gap-1.5 md:gap-3 p-3 md:px-5 md:py-4 rounded-2xl transition-all text-center md:text-left ${activeTab === 'preferences' ? 'bg-primary text-white font-bold shadow-md' : 'bg-white/80 backdrop-blur-xl border border-white/50 shadow-sm text-indigo-900/70 hover:bg-white/80 backdrop-blur-xl border border-white/50 shadow-sm/60 font-medium'}`}
           >
             <Gear size={20} weight={activeTab === 'preferences' ? 'fill' : 'regular'} />
             Ajustes y Preferencias
           </button>
           <button 
             onClick={() => setActiveTab('data')}
-            className={`flex flex-col md:flex-row items-center justify-center md:justify-start gap-1.5 md:gap-3 p-3 md:px-5 md:py-4 rounded-2xl transition-all text-center md:text-left ${activeTab === 'data' ? 'bg-primary text-white font-bold shadow-md' : 'bg-white text-secondary/70 hover:bg-white/60 font-medium'}`}
+            className={`flex flex-col md:flex-row items-center justify-center md:justify-start gap-1.5 md:gap-3 p-3 md:px-5 md:py-4 rounded-2xl transition-all text-center md:text-left ${activeTab === 'data' ? 'bg-primary text-white font-bold shadow-md' : 'bg-white/80 backdrop-blur-xl border border-white/50 shadow-sm text-indigo-900/70 hover:bg-white/80 backdrop-blur-xl border border-white/50 shadow-sm/60 font-medium'}`}
           >
             <Database size={20} weight={activeTab === 'data' ? 'fill' : 'regular'} />
             Datos y Privacidad
@@ -386,7 +386,7 @@ export default function AccountSettings() {
         </div>
 
         {/* Content Area */}
-        <div className="flex-1 bg-white p-6 md:p-8 rounded-[2rem] shadow-sm overflow-hidden">
+        <div className="flex-1 bg-white/80 backdrop-blur-xl border border-white/50 shadow-sm p-6 md:p-8 rounded-[2rem] shadow-sm overflow-hidden">
           
           {/* PROFILE TAB */}
           {activeTab === 'profile' && (
@@ -394,13 +394,13 @@ export default function AccountSettings() {
               <h2 className="text-2xl font-black mb-6">Datos Personales</h2>
               {renderMessageBanner(profileMessage)}
 
-              <div className="mb-8 flex flex-col sm:flex-row items-center gap-6 p-6 bg-[#F4EFEA]/50 rounded-[2rem] border border-[#E8DFD8]">
+              <div className="mb-8 flex flex-col sm:flex-row items-center gap-6 p-6 bg-slate-50/50 rounded-[2rem] border border-[#E8DFD8]">
                 <div className="relative">
                   <div className="w-24 h-24 rounded-full bg-primary/10 border-4 border-white shadow-md overflow-hidden flex items-center justify-center">
                     {avatarUrl ? (
                       <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
                     ) : (
-                      <UserList size={40} className="text-primary/50" />
+                      <UserList size={40} className="text-cyan-600/50" />
                     )}
                   </div>
                   <label className="absolute bottom-0 right-0 p-2 bg-primary text-white rounded-full cursor-pointer shadow-lg hover:scale-105 transition-transform" title="Cambiar Foto">
@@ -416,17 +416,17 @@ export default function AccountSettings() {
                 </div>
                 <div className="text-center sm:text-left">
                   <h3 className="font-bold text-lg">{firstName || 'Tu Nombre'} {lastName || ''}</h3>
-                  <p className="text-sm text-secondary/60">Actualiza tu foto de perfil. Recomendado: 1:1 JPG/PNG.</p>
-                  {uploading && <p className="text-xs text-primary font-bold mt-1 animate-pulse">Subiendo imagen...</p>}
+                  <p className="text-sm text-indigo-900/60">Actualiza tu foto de perfil. Recomendado: 1:1 JPG/PNG.</p>
+                  {uploading && <p className="text-xs text-cyan-600 font-bold mt-1 animate-pulse">Subiendo imagen...</p>}
                 </div>
               </div>
 
               <form onSubmit={handleUpdateProfile} className="space-y-5">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                   <div>
-                    <label className="block text-sm font-bold text-secondary/80 mb-2">Nombre (s)</label>
+                    <label className="block text-sm font-bold text-indigo-900/80 mb-2">Nombre (s)</label>
                     <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-secondary/40">
+                      <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-indigo-900/40">
                         <UserList size={20} />
                       </div>
                       <input
@@ -434,35 +434,35 @@ export default function AccountSettings() {
                         required
                         value={firstName}
                         onChange={(e) => setFirstName(e.target.value)}
-                        className="w-full bg-[#F4EFEA] border-none rounded-xl pl-11 pr-4 py-3.5 text-secondary placeholder:text-secondary/40 focus:ring-2 focus:ring-primary focus:bg-white transition-all font-medium"
+                        className="w-full bg-slate-50 border-none rounded-xl pl-11 pr-4 py-3.5 text-indigo-900 placeholder:text-indigo-900/40 focus:ring-2 focus:ring-primary focus:bg-white/80 backdrop-blur-xl border border-white/50 shadow-sm transition-all font-medium"
                         placeholder="Ej. Juan"
                       />
                     </div>
                   </div>
                   <div>
-                    <label className="block text-sm font-bold text-secondary/80 mb-2">Apellidos</label>
+                    <label className="block text-sm font-bold text-indigo-900/80 mb-2">Apellidos</label>
                     <input
                       type="text"
                       required
                       value={lastName}
                       onChange={(e) => setLastName(e.target.value)}
-                      className="w-full bg-[#F4EFEA] border-none rounded-xl px-4 py-3.5 text-secondary placeholder:text-secondary/40 focus:ring-2 focus:ring-primary focus:bg-white transition-all font-medium"
+                      className="w-full bg-slate-50 border-none rounded-xl px-4 py-3.5 text-indigo-900 placeholder:text-indigo-900/40 focus:ring-2 focus:ring-primary focus:bg-white/80 backdrop-blur-xl border border-white/50 shadow-sm transition-all font-medium"
                       placeholder="Ej. Pérez"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-bold text-secondary/80 mb-2">Número de Teléfono</label>
+                  <label className="block text-sm font-bold text-indigo-900/80 mb-2">Número de Teléfono</label>
                   <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-secondary/40">
+                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-indigo-900/40">
                       <Phone size={20} />
                     </div>
                     <input
                       type="tel"
                       value={phone}
                       onChange={(e) => setPhone(e.target.value)}
-                      className="w-full bg-[#F4EFEA] border-none rounded-xl pl-11 pr-4 py-3.5 text-secondary placeholder:text-secondary/40 focus:ring-2 focus:ring-primary focus:bg-white transition-all font-medium"
+                      className="w-full bg-slate-50 border-none rounded-xl pl-11 pr-4 py-3.5 text-indigo-900 placeholder:text-indigo-900/40 focus:ring-2 focus:ring-primary focus:bg-white/80 backdrop-blur-xl border border-white/50 shadow-sm transition-all font-medium"
                       placeholder="Ej. 55 1234 5678"
                     />
                   </div>
@@ -486,11 +486,11 @@ export default function AccountSettings() {
               <div className="space-y-10">
                 <section>
                   <h3 className="text-lg font-bold flex items-center gap-2 mb-4">
-                    <EnvelopeSimple size={24} className="text-primary" />
+                    <EnvelopeSimple size={24} className="text-cyan-600" />
                     Actualizar Correo Electrónico
                   </h3>
-                  <div className="bg-[#F4EFEA]/50 p-5 rounded-2xl mb-4 border border-[#E8DFD8]">
-                    <p className="text-sm font-medium text-secondary/80 mb-1">Correo actual:</p>
+                  <div className="bg-slate-50/50 p-5 rounded-2xl mb-4 border border-[#E8DFD8]">
+                    <p className="text-sm font-medium text-indigo-900/80 mb-1">Correo actual:</p>
                     <p className="font-bold cursor-default select-all">{email}</p>
                   </div>
                   <form onSubmit={handleUpdateEmail} className="flex flex-col sm:flex-row gap-3">
@@ -499,7 +499,7 @@ export default function AccountSettings() {
                       required
                       value={newEmail}
                       onChange={(e) => setNewEmail(e.target.value)}
-                      className="flex-1 bg-[#F4EFEA] border-none rounded-xl px-4 py-3.5 text-secondary focus:ring-2 focus:ring-primary focus:bg-white transition-all font-medium"
+                      className="flex-1 bg-slate-50 border-none rounded-xl px-4 py-3.5 text-indigo-900 focus:ring-2 focus:ring-primary focus:bg-white/80 backdrop-blur-xl border border-white/50 shadow-sm transition-all font-medium"
                       placeholder="Nuevo correo electrónico"
                     />
                     <button type="submit" className="py-3.5 px-6 rounded-xl font-bold text-white bg-secondary hover:bg-secondary/90 transition-all whitespace-nowrap hidden sm:block">
@@ -509,38 +509,38 @@ export default function AccountSettings() {
                       Actualizar Correo
                     </button>
                   </form>
-                  <p className="text-xs text-secondary/60 mt-2">Nota: Se enviará un enlace de confirmación antes de que el cambio se haga efectivo.</p>
+                  <p className="text-xs text-indigo-900/60 mt-2">Nota: Se enviará un enlace de confirmación antes de que el cambio se haga efectivo.</p>
                 </section>
 
                 <hr className="border-[#E8DFD8]" />
 
                 <section>
                   <h3 className="text-lg font-bold flex items-center gap-2 mb-4">
-                    <LockKey size={24} className="text-primary" />
+                    <LockKey size={24} className="text-cyan-600" />
                     Cambiar Contraseña
                   </h3>
                   <form onSubmit={handleUpdatePassword} className="space-y-4">
                     <div>
-                      <label className="block text-sm font-bold text-secondary/80 mb-2">Nueva Contraseña</label>
+                      <label className="block text-sm font-bold text-indigo-900/80 mb-2">Nueva Contraseña</label>
                       <input
                         type="password"
                         required
                         minLength={6}
                         value={newPassword}
                         onChange={(e) => setNewPassword(e.target.value)}
-                        className="w-full bg-[#F4EFEA] border-none rounded-xl px-4 py-3.5 text-secondary focus:ring-2 focus:ring-primary focus:bg-white transition-all font-medium"
+                        className="w-full bg-slate-50 border-none rounded-xl px-4 py-3.5 text-indigo-900 focus:ring-2 focus:ring-primary focus:bg-white/80 backdrop-blur-xl border border-white/50 shadow-sm transition-all font-medium"
                         placeholder="Mínimo 6 caracteres"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-bold text-secondary/80 mb-2">Confirmar Nueva Contraseña</label>
+                      <label className="block text-sm font-bold text-indigo-900/80 mb-2">Confirmar Nueva Contraseña</label>
                       <input
                         type="password"
                         required
                         minLength={6}
                         value={confirmPassword}
                         onChange={(e) => setConfirmPassword(e.target.value)}
-                        className="w-full bg-[#F4EFEA] border-none rounded-xl px-4 py-3.5 text-secondary focus:ring-2 focus:ring-primary focus:bg-white transition-all font-medium"
+                        className="w-full bg-slate-50 border-none rounded-xl px-4 py-3.5 text-indigo-900 focus:ring-2 focus:ring-primary focus:bg-white/80 backdrop-blur-xl border border-white/50 shadow-sm transition-all font-medium"
                         placeholder="Repite la nueva contraseña"
                       />
                     </div>
@@ -597,10 +597,10 @@ export default function AccountSettings() {
               <div className="space-y-8">
                 <section>
                   <h3 className="text-lg font-bold flex items-center gap-2 mb-2">
-                    <DownloadSimple size={24} className="text-primary" />
+                    <DownloadSimple size={24} className="text-cyan-600" />
                     Exportar toda tu información
                   </h3>
-                  <p className="text-secondary/70 mb-4 text-sm leading-relaxed">
+                  <p className="text-indigo-900/70 mb-4 text-sm leading-relaxed">
                     Descarga un archivo seguro con todos tus datos personales, médicos, contactos, y vehículos asociados a tu QRide. Esto será muy útil si deseas darle tus datos rápidamente a tu médico o respaldarlos.
                   </p>
                   <button 
@@ -617,10 +617,10 @@ export default function AccountSettings() {
 
                 <section>
                   <h3 className="text-lg font-bold flex items-center gap-2 mb-2">
-                    <UploadSimple size={24} className="text-primary" />
+                    <UploadSimple size={24} className="text-cyan-600" />
                     Importar un perfil QRide
                   </h3>
-                  <p className="text-secondary/70 mb-4 text-sm leading-relaxed">
+                  <p className="text-indigo-900/70 mb-4 text-sm leading-relaxed">
                     ¿Tienes un archivo de datos QRide que quieras subir? Al importarlo, agregaremos o combinaremos la información de ese respaldo con tu cuenta actual para facilitarte la captura de datos.
                   </p>
                   
@@ -634,7 +634,7 @@ export default function AccountSettings() {
                   <button 
                     onClick={() => fileInputRef.current?.click()}
                     disabled={isImporting}
-                    className="flex w-full sm:w-auto items-center justify-center gap-2 py-3.5 px-6 rounded-xl font-bold bg-[#F4EFEA] hover:bg-[#E8DFD8] text-secondary transition-all disabled:opacity-50"
+                    className="flex w-full sm:w-auto items-center justify-center gap-2 py-3.5 px-6 rounded-xl font-bold bg-slate-50 hover:bg-[#E8DFD8] text-indigo-900 transition-all disabled:opacity-50"
                   >
                     <UploadSimple size={20} weight="bold" />
                     {isImporting ? 'Procesando importación...' : 'Subir archivo de respaldo (.xlsx)'}
@@ -656,7 +656,7 @@ export default function AccountSettings() {
               console.info(`[LOG DE SEGURIDAD - AUDITORÍA]: Cierre de sesión exitoso ${new Date().toISOString()}`);
              navigate('/');
           }}
-          className="flex w-full items-center justify-center gap-3 p-4 rounded-2xl bg-white border border-red-100 text-red-500 font-bold shadow-sm"
+          className="flex w-full items-center justify-center gap-3 p-4 rounded-2xl bg-white/80 backdrop-blur-xl border border-white/50 shadow-sm border border-red-100 text-red-500 font-bold shadow-sm"
         >
           <SignOut size={20} weight="bold" />
           Cerrar Sesión

@@ -157,20 +157,20 @@ export default function Dashboard() {
   }, [navigate, fetchDashboardData]);
 
   if (!user || loadingData) return (
-    <div className="min-h-screen bg-[#F4EFEA] font-sans flex relative overflow-hidden">
+    <div className="min-h-screen bg-slate-50 font-sans flex relative overflow-hidden">
       {/* Skeleton Desktop Nav */}
-      <div className="hidden md:flex flex-col w-24 lg:w-[240px] bg-[#1C1A27] text-white shadow-2xl z-50 fixed h-full p-4 lg:p-6 transition-all duration-300">
-        <div className="h-10 w-10 lg:w-32 bg-white/10 rounded-xl mb-12 animate-pulse" />
+      <div className="hidden md:flex flex-col w-24 lg:w-[240px] bg-slate-900 text-white shadow-2xl z-50 fixed h-full p-4 lg:p-6 transition-all duration-300">
+        <div className="h-10 w-10 lg:w-32 bg-white/80 backdrop-blur-xl border border-white/50 shadow-sm/10 rounded-xl mb-12 animate-pulse" />
         <div className="space-y-4 w-full">
-          {[1,2,3,4,5].map(i => <div key={i} className="h-12 w-full bg-white/5 rounded-xl animate-pulse" />)}
+          {[1,2,3,4,5].map(i => <div key={i} className="h-12 w-full bg-white/80 backdrop-blur-xl border border-white/50 shadow-sm/5 rounded-xl animate-pulse" />)}
         </div>
       </div>
 
       <div className="flex-1 flex flex-col md:pl-24 lg:pl-[240px] transition-all duration-300 w-full">
         {/* Skeleton Mobile Header */}
-        <div className="bg-[#1C1A27] p-4 sticky top-0 z-40 md:hidden flex justify-between items-center shadow-lg">
-          <div className="h-8 w-24 bg-white/10 rounded-lg animate-pulse" />
-          <div className="h-10 w-10 bg-white/10 rounded-full animate-pulse" />
+        <div className="bg-slate-900 p-4 sticky top-0 z-40 md:hidden flex justify-between items-center shadow-lg">
+          <div className="h-8 w-24 bg-white/80 backdrop-blur-xl border border-white/50 shadow-sm/10 rounded-lg animate-pulse" />
+          <div className="h-10 w-10 bg-white/80 backdrop-blur-xl border border-white/50 shadow-sm/10 rounded-full animate-pulse" />
         </div>
 
         <main className="flex-1 p-4 md:p-8 max-w-7xl mx-auto w-full pb-28 md:pb-8">
@@ -185,12 +185,12 @@ export default function Dashboard() {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
             <div className="lg:col-span-2 space-y-6 md:space-y-8">
               {/* Card Skeleton */}
-              <div className="w-full h-[220px] md:h-[280px] bg-primary/20 rounded-[1.5rem] animate-pulse shadow-xl" />
+              <div className="w-full h-[220px] md:h-[280px] bg-gradient-to-br from-cyan-50 to-indigo-50 border border-indigo-100 shadow-inner rounded-[1.5rem] animate-pulse shadow-xl" />
               
               {/* Vitals Skeleton */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
                 {[1,2,3,4].map(i => (
-                  <div key={i} className="bg-white p-4 md:p-5 rounded-[1.5rem] shadow-sm h-[110px] md:h-[130px] flex flex-col justify-between">
+                  <div key={i} className="bg-white/80 backdrop-blur-xl border border-white/50 shadow-sm p-4 md:p-5 rounded-[1.5rem] shadow-sm h-[110px] md:h-[130px] flex flex-col justify-between">
                     <div className="w-10 h-10 bg-gray-100 rounded-2xl animate-pulse" />
                     <div>
                       <div className="h-6 w-16 bg-gray-300 rounded-lg animate-pulse mb-1" />
@@ -203,7 +203,7 @@ export default function Dashboard() {
 
             <div className="space-y-6 md:space-y-8">
                {/* Controls skeleton */}
-               <div className="bg-white rounded-[2rem] p-5 shadow-sm">
+               <div className="bg-white/80 backdrop-blur-xl border border-white/50 shadow-sm rounded-[2rem] p-5 shadow-sm">
                   <div className="h-6 w-40 bg-gray-300 rounded-lg animate-pulse mb-6" />
                   <div className="grid grid-cols-2 gap-3">
                     {[1, 2, 3, 4].map(i => (
@@ -218,7 +218,7 @@ export default function Dashboard() {
     </div>
 );
 return (
-    <div className="min-h-screen bg-[#F4EFEA] font-sans flex relative overflow-hidden">
+    <div className="min-h-screen bg-slate-50 font-sans flex relative overflow-hidden">
       <FloatingShapes />
       
       {/* Credencial oculta para el PDF (fuera de pantalla) */}
@@ -304,10 +304,10 @@ return (
             className="flex flex-col md:flex-row md:items-end justify-between gap-4 pt-4"
           >
             <div>
-              <h1 className="text-3xl md:text-4xl font-extrabold text-secondary tracking-tight">
+              <h1 className="text-3xl md:text-4xl font-extrabold text-indigo-900 tracking-tight">
                 Hola, {user.user_metadata?.first_name || 'Usuario'}
               </h1>
-              <p className="text-gray-500 font-medium mt-1">Este es el resumen de tu identidad vital.</p>
+              <p className="text-slate-500 font-medium mt-1">Este es el resumen de tu identidad vital.</p>
             </div>
             <button 
                 onClick={() => {
@@ -318,7 +318,7 @@ return (
                   dragX.set(0);
                   setIsEmergencySliderOpen(true);
                 }}
-                className="flex items-center gap-2 bg-white hover:bg-gray-50 border-2 border-red-100 px-5 py-2.5 rounded-2xl text-sm font-bold text-red-600 shadow-sm transition-all focus:ring-4 focus:ring-red-100 active:scale-95"
+                className="flex items-center gap-2 bg-white/80 backdrop-blur-xl border border-white/50 shadow-sm hover:bg-gray-50 border-2 border-red-100 px-5 py-2.5 rounded-2xl text-sm font-bold text-red-600 shadow-sm transition-all focus:ring-4 focus:ring-red-100 active:scale-95"
               >
                 <AlertCircle size={18} />
                 Notificar Emergencia
@@ -335,14 +335,14 @@ return (
             >
               <div className="bg-secondary text-white rounded-[2rem] p-8 text-center relative overflow-hidden shadow-[0_8px_30px_rgb(0,0,0,0.08)] h-full flex flex-col justify-between">
                 {/* Patrón de fondo opcional */}
-                <div className="absolute top-0 right-0 -mr-8 -mt-8 w-40 h-40 bg-white/5 rounded-full blur-2xl"></div>
+                <div className="absolute top-0 right-0 -mr-8 -mt-8 w-40 h-40 bg-white/80 backdrop-blur-xl border border-white/50 shadow-sm/5 rounded-full blur-2xl"></div>
                 
                 <div className="relative z-10 flex flex-col items-center flex-1">
 <div 
                       onClick={() => setIsQRModalOpen(true)}
-                      className="bg-white/10 p-5 rounded-3xl mb-6 backdrop-blur-sm border border-white/10 cursor-pointer hover:scale-105 transition-transform"
+                      className="bg-white/80 backdrop-blur-xl border border-white/50 shadow-sm/10 p-5 rounded-3xl mb-6 backdrop-blur-sm border border-white/10 cursor-pointer hover:scale-105 transition-transform"
                     >
-                    <div className="p-3 bg-white rounded-2xl shadow-lg flex items-center justify-center w-[160px] h-[160px]">
+                    <div className="p-3 bg-white/80 backdrop-blur-xl border border-white/50 shadow-sm rounded-2xl shadow-lg flex items-center justify-center w-[160px] h-[160px]">
                       <QRCodeSVG 
                         value={`${window.location.origin}/p/${user.id}`} 
                         size={150} 
@@ -359,7 +359,7 @@ return (
                   <div className="flex items-center gap-3 w-full mt-auto">
                       <button 
                         onClick={handleShare}
-                        className="flex-1 flex items-center justify-center gap-2 bg-white/10 hover:bg-white/20 border border-white/10 text-white py-3.5 rounded-xl transition-colors text-sm font-bold"
+                        className="flex-1 flex items-center justify-center gap-2 bg-white/80 backdrop-blur-xl border border-white/50 shadow-sm/10 hover:bg-white/80 backdrop-blur-xl border border-white/50 shadow-sm/20 border border-white/10 text-white py-3.5 rounded-xl transition-colors text-sm font-bold"
                       >
                       <Share2 size={16} /> Compartir
                     </button>
@@ -381,16 +381,16 @@ return (
               {/* Ficha Rápida (Bento Moderno con Bloques de Color Sólido) */}
               <motion.div 
                 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.2 }}
-                className="bg-white rounded-[2rem] p-6 md:p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-100"
+                className="bg-white/80 backdrop-blur-xl border border-white/50 shadow-sm rounded-[2rem] p-6 md:p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-100"
               >
                 <div className="flex items-center justify-between mb-8">
-                  <h3 className="text-xl font-extrabold text-secondary flex items-center gap-2">
-                    <Heartbeat size={24} className="text-primary" weight="fill" />
+                  <h3 className="text-xl font-extrabold text-indigo-900 flex items-center gap-2">
+                    <Heartbeat size={24} className="text-cyan-600" weight="fill" />
                     Ficha Rápida
                   </h3>
                   <button 
                     onClick={() => setIsEditMedicalModalOpen(true)}
-                    className="text-sm font-bold text-gray-500 hover:text-primary flex items-center gap-1 transition-colors bg-bg-light px-4 py-2 rounded-xl"
+                    className="text-sm font-bold text-slate-500 hover:text-cyan-600 flex items-center gap-1 transition-colors bg-bg-light px-4 py-2 rounded-xl"
                   >
                     Editar <ArrowUpRight size={14} weight="bold" />
                   </button>
@@ -398,7 +398,7 @@ return (
 
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                   <div className="bg-red-50 p-5 rounded-[1.5rem] border-none group">
-                    <div className="bg-white w-10 h-10 rounded-full flex items-center justify-center mb-4 shadow-sm text-red-500 group-hover:scale-110 transition-transform">
+                    <div className="bg-white/80 backdrop-blur-xl border border-white/50 shadow-sm w-10 h-10 rounded-full flex items-center justify-center mb-4 shadow-sm text-red-500 group-hover:scale-110 transition-transform">
                       <Drop size={20} weight="fill" />
                     </div>
                     <p className="text-[10px] font-extrabold text-red-900/50 uppercase tracking-widest mb-1">Sangre</p>
@@ -406,7 +406,7 @@ return (
                   </div>
 
                   <div className="bg-blue-50 p-5 rounded-[1.5rem] border-none group">
-                    <div className="bg-white w-10 h-10 rounded-full flex items-center justify-center mb-4 shadow-sm text-blue-500 group-hover:scale-110 transition-transform">
+                    <div className="bg-white/80 backdrop-blur-xl border border-white/50 shadow-sm w-10 h-10 rounded-full flex items-center justify-center mb-4 shadow-sm text-blue-500 group-hover:scale-110 transition-transform">
                       <Ruler size={20} weight="fill" />
                     </div>
                     <p className="text-[10px] font-extrabold text-blue-900/50 uppercase tracking-widest mb-1">Estatura</p>
@@ -416,7 +416,7 @@ return (
                   </div>
 
                   <div className="bg-emerald-50 p-5 rounded-[1.5rem] border-none group">
-                    <div className="bg-white w-10 h-10 rounded-full flex items-center justify-center mb-4 shadow-sm text-emerald-500 group-hover:scale-110 transition-transform">
+                    <div className="bg-white/80 backdrop-blur-xl border border-white/50 shadow-sm w-10 h-10 rounded-full flex items-center justify-center mb-4 shadow-sm text-emerald-500 group-hover:scale-110 transition-transform">
                       <Scales size={20} weight="fill" />
                     </div>
                     <p className="text-[10px] font-extrabold text-emerald-900/50 uppercase tracking-widest mb-1">Peso</p>
@@ -426,7 +426,7 @@ return (
                   </div>
 
                   <div className="bg-orange-50 p-5 rounded-[1.5rem] border-none group">
-                    <div className="bg-white w-10 h-10 rounded-full flex items-center justify-center mb-4 shadow-sm text-orange-500 group-hover:scale-110 transition-transform">
+                    <div className="bg-white/80 backdrop-blur-xl border border-white/50 shadow-sm w-10 h-10 rounded-full flex items-center justify-center mb-4 shadow-sm text-orange-500 group-hover:scale-110 transition-transform">
                       <AlertCircle size={20} className="fill-orange-500 text-white" />
                     </div>
                     <p className="text-[10px] font-extrabold text-orange-900/50 uppercase tracking-widest mb-1">Alergias</p>
@@ -438,7 +438,7 @@ return (
                   </div>
 
                   <div className="bg-purple-50 p-5 rounded-[1.5rem] border-none group col-span-2 md:col-span-1">
-                    <div className="bg-white w-10 h-10 rounded-full flex items-center justify-center mb-4 shadow-sm text-purple-500 group-hover:scale-110 transition-transform">
+                    <div className="bg-white/80 backdrop-blur-xl border border-white/50 shadow-sm w-10 h-10 rounded-full flex items-center justify-center mb-4 shadow-sm text-purple-500 group-hover:scale-110 transition-transform">
                       <ShieldAlert size={20} />
                     </div>
                     <p className="text-[10px] font-extrabold text-purple-900/50 uppercase tracking-widest mb-1">NSS (Seguro)</p>
@@ -448,7 +448,7 @@ return (
                   </div>
 
                   <div className="bg-teal-50 p-5 rounded-[1.5rem] border-none group col-span-2 md:col-span-1">
-                    <div className="bg-white w-10 h-10 rounded-full flex items-center justify-center mb-4 shadow-sm text-teal-500 group-hover:scale-110 transition-transform">
+                    <div className="bg-white/80 backdrop-blur-xl border border-white/50 shadow-sm w-10 h-10 rounded-full flex items-center justify-center mb-4 shadow-sm text-teal-500 group-hover:scale-110 transition-transform">
                       <Hospital size={20} />
                     </div>
                     <p className="text-[10px] font-extrabold text-teal-900/50 uppercase tracking-widest mb-1">Hospital Preferido</p>
@@ -464,16 +464,16 @@ return (
               {/* Contactos de Emergencia (Limpios y Sólidos) */}
               <motion.div 
                 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.3 }}
-                className="bg-white rounded-[2rem] p-6 md:p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-100"
+                className="bg-white/80 backdrop-blur-xl border border-white/50 shadow-sm rounded-[2rem] p-6 md:p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-100"
               >
                 <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-xl font-extrabold text-secondary flex items-center gap-2">
+                  <h3 className="text-xl font-extrabold text-indigo-900 flex items-center gap-2">
                     <Phone size={24} className="text-accent" weight="fill" />
                     Contactos de Emergencia
                   </h3>
                   <button 
                     onClick={() => setIsAddContactModalOpen(true)}
-                    className="text-sm font-bold text-primary hover:text-secondary transition-colors"
+                    className="text-sm font-bold text-cyan-600 hover:text-indigo-900 transition-colors"
                   >
                     + Agregar Nuevo
                   </button>
@@ -482,10 +482,10 @@ return (
                 <div className="space-y-3">
                   {contacts.length === 0 ? (
                     <div className="text-center p-6 bg-bg-light rounded-[1.5rem] border border-dashed border-gray-200">
-                      <p className="text-gray-500 font-medium">No tienes contactos de emergencia registrados.</p>
+                      <p className="text-slate-500 font-medium">No tienes contactos de emergencia registrados.</p>
                       <button 
                         onClick={() => setIsAddContactModalOpen(true)}
-                        className="mt-2 text-sm font-bold text-primary hover:underline"
+                        className="mt-2 text-sm font-bold text-cyan-600 hover:underline"
                       >
                         Añadir mi primer contacto
                       </button>
@@ -494,25 +494,25 @@ return (
                     contacts.map((contact) => (
                       <div key={contact.id} className="flex items-center justify-between p-4 bg-bg-light rounded-[1.5rem] hover:bg-gray-100 transition-colors group">
                         <div className="flex items-center gap-4">
-                          <div className="w-12 h-12 rounded-2xl bg-white shadow-sm flex items-center justify-center text-gray-500 font-black text-lg uppercase">
+                          <div className="w-12 h-12 rounded-2xl bg-white/80 backdrop-blur-xl border border-white/50 shadow-sm shadow-sm flex items-center justify-center text-slate-500 font-black text-lg uppercase">
                             {contact.name.charAt(0)}
                           </div>
                           <div>
-                            <p className="font-extrabold text-secondary text-lg">{contact.name}</p>
-                            <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">{contact.relationship} &bull; {contact.phone}</p>
+                            <p className="font-extrabold text-indigo-900 text-lg">{contact.name}</p>
+                            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">{contact.relationship} &bull; {contact.phone}</p>
                           </div>
                         </div>
                         <div className="flex items-center gap-2 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity">
                           <button 
                             onClick={() => handleDeleteContact(contact.id)}
-                            className="p-3 bg-white shadow-sm hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors text-gray-400"
+                            className="p-3 bg-white/80 backdrop-blur-xl border border-white/50 shadow-sm shadow-sm hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors text-gray-400"
                             title="Eliminar contacto"
                           >
                             <Trash size={20} weight="fill" />
                           </button>
                           <a 
                             href={`tel:${contact.phone}`}
-                            className="p-3 bg-white shadow-sm hover:text-primary hover:bg-primary/5 rounded-xl transition-colors text-gray-600"
+                            className="p-3 bg-white/80 backdrop-blur-xl border border-white/50 shadow-sm shadow-sm hover:text-cyan-600 hover:bg-primary/5 rounded-xl transition-colors text-slate-600"
                             title="Llamar"
                           >
                             <Phone size={20} weight="fill" />
@@ -544,11 +544,11 @@ return (
               animate={{ scale: 1, opacity: 1, y: 0 }} 
               exit={{ scale: 0.9, opacity: 0, y: 20 }}
               onClick={(e) => e.stopPropagation()}
-              className="bg-white p-8 rounded-[2rem] shadow-2xl relative max-w-sm w-full flex flex-col items-center text-center"
+              className="bg-white/80 backdrop-blur-xl border border-white/50 shadow-sm p-8 rounded-[2rem] shadow-2xl relative max-w-sm w-full flex flex-col items-center text-center"
             >
               <button 
                 onClick={() => setIsUnderConstructionModalOpen(false)}
-                className="absolute top-4 right-4 p-2 bg-gray-100 hover:bg-gray-200 rounded-full text-gray-600 transition-colors"
+                className="absolute top-4 right-4 p-2 bg-gray-100 hover:bg-gray-200 rounded-full text-slate-600 transition-colors"
               >
                 <X size={20} />
               </button>
@@ -556,8 +556,8 @@ return (
               <div className="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center mb-6 text-blue-500">
                 <ShieldAlert size={32} />
               </div>
-              <h3 className="text-secondary text-2xl font-black mb-3">{constructionFeatureName}</h3>
-              <p className="text-gray-500 font-medium mb-6">
+              <h3 className="text-indigo-900 text-2xl font-black mb-3">{constructionFeatureName}</h3>
+              <p className="text-slate-500 font-medium mb-6">
                 Estamos trabajando aplicando medidas de máxima seguridad (encriptación AES-256) antes de liberar este módulo al público.
               </p>
               <span className="px-4 py-2 bg-gray-100 rounded-full text-xs font-bold text-gray-400 tracking-widest uppercase mb-2">Próximamente</span>
@@ -581,24 +581,24 @@ return (
               animate={{ scale: 1, opacity: 1 }} 
               exit={{ scale: 0.9, opacity: 0 }}
               onClick={(e) => e.stopPropagation()}
-              className="bg-white p-8 rounded-[2rem] shadow-2xl relative max-w-sm w-full flex flex-col items-center"
+              className="bg-white/80 backdrop-blur-xl border border-white/50 shadow-sm p-8 rounded-[2rem] shadow-2xl relative max-w-sm w-full flex flex-col items-center"
             >
               <button 
                 onClick={() => setIsQRModalOpen(false)}
-                className="absolute top-4 right-4 p-2 bg-gray-100 hover:bg-gray-200 rounded-full text-gray-600 transition-colors"
+                className="absolute top-4 right-4 p-2 bg-gray-100 hover:bg-gray-200 rounded-full text-slate-600 transition-colors"
               >
                 <X size={20} />
               </button>
               
-              <h3 className="text-secondary text-2xl font-black mb-6 text-center">Tu Código QRide</h3>
-              <div className="bg-white p-4 rounded-3xl shadow-inner border border-gray-100 mb-6">
+              <h3 className="text-indigo-900 text-2xl font-black mb-6 text-center">Tu Código QRide</h3>
+              <div className="bg-white/80 backdrop-blur-xl border border-white/50 shadow-sm p-4 rounded-3xl shadow-inner border border-gray-100 mb-6">
                 <QRCodeSVG 
                   value={`${window.location.origin}/p/${user?.id}`} 
                   size={250} 
                   level="H" 
                 />
               </div>
-              <p className="text-gray-500 text-sm font-medium text-center mb-6">
+              <p className="text-slate-500 text-sm font-medium text-center mb-6">
                 Muestra este código al personal médico de emergencia para que escaneen tu perfil vital.
               </p>
               <button 
@@ -621,11 +621,11 @@ return (
             >
               <motion.div
                 initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }}
-                className="bg-white rounded-[2rem] p-6 md:p-8 w-full max-w-sm text-center shadow-2xl relative"
+                className="bg-white/80 backdrop-blur-xl border border-white/50 shadow-sm rounded-[2rem] p-6 md:p-8 w-full max-w-sm text-center shadow-2xl relative"
               >
                 <button
                   onClick={() => setIsEmergencySliderOpen(false)}
-                  className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-50 rounded-full p-2"
+                  className="absolute top-4 right-4 text-gray-400 hover:text-slate-600 bg-gray-50 rounded-full p-2"
                 >
                   <X size={20} />
                 </button>
@@ -634,8 +634,8 @@ return (
                   <ShieldAlert size={36} className="text-red-500" />
                 </div>
                 
-                <h2 className="text-2xl md:text-3xl font-black text-secondary mb-2">Confirmar Alerta</h2>
-                <p className="text-gray-500 text-sm md:text-base mb-8 font-medium px-4">
+                <h2 className="text-2xl md:text-3xl font-black text-indigo-900 mb-2">Confirmar Alerta</h2>
+                <p className="text-slate-500 text-sm md:text-base mb-8 font-medium px-4">
                   Desliza para enviar un mensaje SMS de auxilio con tu historial médico a todos tus contactos.
                 </p>
 
