@@ -6,6 +6,8 @@ import { supabase } from '../../lib/supabase';
 export function DocumentsModal({ isOpen, onClose, user }) {
   const [loading, setLoading] = useState(false);
   const [documents, setDocuments] = useState([]);
+  const [editingId, setEditingId] = useState(null);
+  const [editTitle, setEditTitle] = useState('');
 
   useEffect(() => {
     if (isOpen && user) {
@@ -74,7 +76,7 @@ export function DocumentsModal({ isOpen, onClose, user }) {
   };
 
   const handleDelete = async (docId, filePath) => {
-    if (!confirm('¿Estás seguro de eliminar este documento?')) return;
+    if (!window.confirm('¿Estás seguro de eliminar este documento?')) return;
     try {
       // Remove from storage
       await supabase.storage.from('documents').remove([filePath]);
@@ -84,6 +86,31 @@ export function DocumentsModal({ isOpen, onClose, user }) {
       setDocuments(documents.filter(d => d.id !== docId));
     } catch (error) {
       console.error('Error deleting doc:', error);
+    }
+  };
+
+  const handleEdit = (doc) => {
+    setEditingId(doc.id);
+    setEditTitle(doc.title || '');
+  };
+
+  const handleSaveEdit = async (docId) => {
+    if (!editTitle.trim()) return;
+    setLoading(true);
+    try {
+      const { error } = await supabase
+        .from('user_documents')
+        .update({ title: editTitle.trim() })
+        .eq('id', docId);
+      
+      if (error) throw error;
+      setDocuments(documents.map(d => d.id === docId ? { ...d, title: editTitle.trim() } : d));
+      setEditingId(null);
+    } catch (error) {
+      console.error('Error updating doc:', error);
+      alert('Error al actualizar el documento');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -141,21 +168,47 @@ export function DocumentsModal({ isOpen, onClose, user }) {
                 ) : (
                   <div className="space-y-3">
                     {documents.map(doc => (
-                      <div key={doc.id} className="bg-white p-4 rounded-xl border border-[#E8DFD8] flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className="p-2 bg-red-100 text-red-500 rounded-lg"><FileText size={18}/></div>
-                          <div>
-                              <p className="font-bold text-sm text-secondary truncate max-w-[200px]" title={doc.title}>{doc.title}</p>
-                              <p className="text-xs text-secondary/50"> • {doc.document_type || 'PDF'}</p>
+                      <div key={doc.id} className="bg-white p-4 rounded-xl border border-[#E8DFD8] flex items-center justify-between group">
+                        <div className="flex items-center gap-3 flex-1 overflow-hidden">
+                          <div className="p-2 bg-red-100 text-red-500 rounded-lg shrink-0"><FileText size={18}/></div>
+                          {editingId === doc.id ? (
+                            <div className="flex-1 flex gap-2 mr-2">
+                               <input 
+                                  type="text" 
+                                  value={editTitle}
+                                  onChange={e => setEditTitle(e.target.value)}
+                                  className="flex-1 bg-gray-50 border border-gray-200 rounded-lg px-2 py-1 text-sm font-semibold text-secondary focus:ring-2 focus:ring-primary outline-none"
+                                  autoFocus
+                               />
                             </div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <div className="text-xs bg-green-50 text-green-700 font-bold px-2 py-1 rounded-md flex items-center gap-1">
-                              <ShieldCheck size={14}/> Seguro
+                          ) : (
+                            <div className="min-w-0">
+                                <p className="font-bold text-sm text-secondary truncate max-w-[200px]" title={doc.title}>{doc.title}</p>
+                                <p className="text-xs text-secondary/50"> • {doc.document_type || 'PDF'}</p>
                             </div>
-                            <button onClick={() => handleDelete(doc.id, doc.file_path)} className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
-                              <Trash2 size={16} />
-                            </button>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                            {editingId === doc.id ? (
+                                <>
+                                  <button onClick={() => handleSaveEdit(doc.id)} className="text-xs bg-primary text-white font-bold px-3 py-1.5 rounded-lg hover:bg-primary/90 transition-colors">Guardar</button>
+                                  <button onClick={() => setEditingId(null)} className="text-xs bg-gray-100 text-gray-600 font-bold px-3 py-1.5 rounded-lg hover:bg-gray-200 transition-colors">Cancelar</button>
+                                </>
+                            ) : (
+                                <>
+                                  <div className="text-xs bg-green-50 text-green-700 font-bold px-2 py-1 rounded-md flex items-center gap-1">
+                                    <ShieldCheck size={14}/> Seguro
+                                  </div>
+                                  <div className="flex gap-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                                    <button onClick={() => handleEdit(doc)} className="p-1.5 text-primary hover:text-primary hover:bg-primary/10 rounded-lg transition-colors" title="Editar Nombre">
+                                      <FileText size={16} />
+                                    </button>
+                                    <button onClick={() => handleDelete(doc.id, doc.file_path)} className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Eliminar">
+                                      <Trash2 size={16} />
+                                    </button>
+                                  </div>
+                                </>
+                            )}
                         </div>
                       </div>
                     ))}

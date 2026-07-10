@@ -1,9 +1,9 @@
+import { CAR_BRANDS, CAR_MODELS, CAR_YEARS, MOTO_BRANDS, MOTO_MODELS } from '../utils/catalogs';
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  LogOut, ShieldAlert, Trash, Search, RefreshCw, Plus, Edit, X, Upload, 
+import { Users, Mail, LogOut, ShieldAlert, Trash, Search, RefreshCw, Plus, Edit, X, Upload, 
   Check, FilePlus, AlertCircle, FileText, Phone, Car, PlusCircle, Trash2, 
   Sparkles, ExternalLink, Activity, Info
 } from 'lucide-react';
@@ -47,8 +47,9 @@ export default function AdminPanel() {
     user_documents: []
   });
 
-  const tabs = [
+    const tabs = [
     { id: 'dashboard', name: 'Estadísticas', icon: Activity },
+    { id: 'users', name: 'Usuarios', icon: Users },
     { id: 'medical_records', name: 'Expedientes', icon: FileText },
     { id: 'emergency_contacts', name: 'Contactos', icon: Phone },
     { id: 'vehicles', name: 'Vehículos', icon: Car },
@@ -62,6 +63,7 @@ export default function AdminPanel() {
   const checkAdminAndLoadData = async () => {
     setLoading(true);
     const { data: { user } } = await supabase.auth.getUser();
+    console.log('[AdminPanel] Usuario autenticado:', user?.id, '| Rol:', user?.user_metadata?.role);
     if (!user || user.user_metadata?.role !== 'admin') {
       navigate('/dashboard');
       return;
@@ -81,10 +83,11 @@ export default function AdminPanel() {
         supabase.from('medical_records').select('*'),
         supabase.from('emergency_contacts').select('*'),
         supabase.from('vehicles').select('*'),
-        supabase.from('user_documents').select('*')
+        supabase.from('user_documents').select('*'),
       ]);
 
       const records = {
+        users: [],
         medical_records: medicalRes.data || [],
         emergency_contacts: contactRes.data || [],
         vehicles: vehicleRes.data || [],
@@ -205,12 +208,35 @@ export default function AdminPanel() {
     };
   }, [allData, activeTab]);
 
-  const loadData = async (table) => {
+    const loadData = async (table) => {
     setLoading(true);
+
+    // Tab Usuarios: leer desde auth.users via RPC de admin
+    if (table === 'users') {
+      console.log('[AdminPanel] Cargando usuarios via RPC get_all_users_for_admin');
+      const { data: usersData, error } = await supabase.rpc('get_all_users_for_admin');
+      console.log('[AdminPanel] Resultado usuarios:', { count: usersData?.length, error });
+      if (!error && usersData) {
+        setData(usersData);
+        // Cachear todos como perfiles por su id
+        const newProfiles = {};
+        usersData.forEach(u => { newProfiles[u.id] = u; });
+        setUsers(prev => ({ ...prev, ...newProfiles }));
+      } else {
+        setData([]);
+        console.error('[AdminPanel] Error cargando usuarios:', error);
+      }
+      setLoading(false);
+      return;
+    }
+
+    console.log(`[AdminPanel] Cargando tabla: ${table}`);
     const { data: records, error } = await supabase.from(table).select('*').order('created_at', { ascending: false });
+    console.log(`[AdminPanel] Resultado de ${table}:`, { count: records?.length, error });
+
     if (!error && records) {
       setData(records);
-      // Resolving User Profiles
+      // Resolver perfiles de los user_ids usando get_public_profile
       const uniqueUserIds = [...new Set(records.map(r => r.user_id).filter(Boolean))];
       const newProfiles = {};
       await Promise.all(uniqueUserIds.map(async (uid) => {
@@ -220,6 +246,7 @@ export default function AdminPanel() {
           if (!rpcError && prof) {
             newProfiles[uid] = prof;
           } else {
+            console.warn(`[AdminPanel] No se pudo resolver perfil para uid ${uid}:`, rpcError);
             newProfiles[uid] = { first_name: 'Usuario', last_name: uid.substring(0, 8) };
           }
         } catch (e) {
@@ -229,35 +256,64 @@ export default function AdminPanel() {
       setUsers(prev => ({ ...prev, ...newProfiles }));
     } else {
       setData([]);
+      console.error(`[AdminPanel] Error cargando ${table}:`, error);
     }
     setLoading(false);
   };
 
   const fetchAllKnownUsers = async () => {
     try {
-      const { data: records } = await supabase.from('medical_records').select('user_id');
-      if (records) {
-        const uniqueIds = [...new Set(records.map(r => r.user_id).filter(Boolean))];
-        const newProfiles = {};
-        await Promise.all(uniqueIds.map(async (uid) => {
-          if (users[uid]) return;
-          const { data: prof } = await supabase.rpc('get_public_profile', { p_id: uid });
-          if (prof) {
-            newProfiles[uid] = prof;
-          } else {
-            newProfiles[uid] = { first_name: 'Usuario', last_name: uid.substring(0, 8) };
-          }
-        }));
-        setUsers(prev => ({ ...prev, ...newProfiles }));
-      }
+      // Obtener user_ids de todas las tablas relevantes
+      const [medRes, vehiclesRes, contactsRes, docsRes] = await Promise.all([
+        supabase.from('medical_records').select('user_id'),
+        supabase.from('vehicles').select('user_id'),
+        supabase.from('emergency_contacts').select('user_id'),
+        supabase.from('user_documents').select('user_id'),
+      ]);
+
+      const allIds = [
+        ...(medRes.data || []),
+        ...(vehiclesRes.data || []),
+        ...(contactsRes.data || []),
+        ...(docsRes.data || []),
+      ].map(r => r.user_id).filter(Boolean);
+
+      const uniqueIds = [...new Set(allIds)];
+      const newProfiles = {};
+      await Promise.all(uniqueIds.map(async (uid) => {
+        if (users[uid]) return;
+        const { data: prof } = await supabase.rpc('get_public_profile', { p_id: uid });
+        if (prof) {
+          newProfiles[uid] = prof;
+        } else {
+          newProfiles[uid] = { first_name: 'Usuario', last_name: uid.substring(0, 8) };
+        }
+      }));
+      setUsers(prev => ({ ...prev, ...newProfiles }));
     } catch (e) {
       console.error('Error fetching known users:', e);
     }
   };
 
+
   const handleDelete = async (id) => {
     if (!window.confirm('¿Eliminar este registro permanentemente?')) return;
     
+    // Si estamos en la pestaña usuarios, usamos la función RPC
+    if (activeTab === 'users') {
+      const { error } = await supabase.rpc('delete_user_admin', { p_user_id: id });
+      if (!error) {
+        setData(data.filter(item => item.id !== id));
+        // Remove from cache
+        const newUsers = { ...users };
+        delete newUsers[id];
+        setUsers(newUsers);
+      } else {
+        alert('Error eliminando usuario: ' + error.message);
+      }
+      return;
+    }
+
     // If it's a user document, optionally delete from storage
     if (activeTab === 'user_documents') {
       const doc = data.find(item => item.id === id);
@@ -359,12 +415,12 @@ export default function AdminPanel() {
     setUploadingFile(true);
 
     try {
-      let finalUserId = formData.user_id;
+      let finalUserId = activeTab === 'users' ? editingItem?.id : formData.user_id;
       if (!finalUserId || finalUserId.trim() === '') {
         throw new Error('El ID de usuario es obligatorio');
       }
 
-      let savePayload = { ...formData, user_id: finalUserId.trim() };
+      let savePayload = activeTab === 'users' ? { ...formData } : { ...formData, user_id: finalUserId.trim() };
 
       // Handle custom file upload for user_documents
       if (activeTab === 'user_documents' && selectedFile) {
@@ -393,26 +449,46 @@ export default function AdminPanel() {
         savePayload.updated_at = new Date().toISOString();
       }
 
-      if (editingItem) {
-        // Update
-        const { data: updated, error } = await supabase
-          .from(activeTab)
-          .update(savePayload)
-          .eq('id', editingItem.id)
-          .select();
-
-        if (error) throw error;
-        
-        setData(data.map(item => item.id === editingItem.id ? updated[0] : item));
+      if (activeTab === 'users') {
+        // En usuarios solo se puede editar, no crear desde el panel de admin (normalmente se registran ellos solos)
+        if (editingItem) {
+          const { error } = await supabase.rpc('update_user_admin', {
+            p_user_id: editingItem.id,
+            p_first_name: savePayload.first_name,
+            p_last_name: savePayload.last_name,
+            p_phone: savePayload.phone,
+            p_role: savePayload.role
+          });
+          if (error) throw error;
+          
+          const updatedUser = { ...editingItem, ...savePayload };
+          setData(data.map(item => item.id === editingItem.id ? updatedUser : item));
+          setUsers(prev => ({ ...prev, [editingItem.id]: updatedUser }));
+        } else {
+          alert("La creación de usuarios directamente desde el panel no está soportada. Pida al usuario que se registre.");
+        }
       } else {
-        // Create
-        const { data: inserted, error } = await supabase
-          .from(activeTab)
-          .insert([savePayload])
-          .select();
+        if (editingItem) {
+          // Update
+          const { data: updated, error } = await supabase
+            .from(activeTab)
+            .update(savePayload)
+            .eq('id', editingItem.id)
+            .select();
 
-        if (error) throw error;
-        setData([inserted[0], ...data]);
+          if (error) throw error;
+          
+          setData(data.map(item => item.id === editingItem.id ? updated[0] : item));
+        } else {
+          // Create
+          const { data: inserted, error } = await supabase
+            .from(activeTab)
+            .insert([savePayload])
+            .select();
+
+          if (error) throw error;
+          setData([inserted[0], ...data]);
+        }
       }
 
       // Refresh profiles cache
@@ -664,7 +740,7 @@ export default function AdminPanel() {
                 >
                   <RefreshCw className="w-5 h-5" />
                 </button>
-                {activeTab !== 'dashboard' && (
+                {activeTab !== 'dashboard' && activeTab !== 'users' && (
                   <button 
                     onClick={openCreate}
                     className="flex items-center gap-2 bg-primary text-white px-5 py-3 rounded-2xl shadow-md hover:bg-btn-hover active:scale-[0.98] transition-all font-sans font-bold text-sm"
@@ -978,7 +1054,10 @@ export default function AdminPanel() {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 <AnimatePresence>
                   {filteredData.map(item => {
-                    const userProfile = users[item.user_id] || { first_name: 'Cargando...', last_name: '' };
+                    // Para la tab users, el item es el perfil directamente
+                    const userProfile = activeTab === 'users'
+                      ? item
+                      : (users[item.user_id] || { first_name: 'Cargando...', last_name: '' });
                     return (
                       <motion.div
                         layout
@@ -995,16 +1074,55 @@ export default function AdminPanel() {
                               {userProfile.avatar_url ? (
                                 <img src={userProfile.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
                               ) : (
-                                <span className="font-bold text-secondary text-sm">{userProfile.first_name.charAt(0)}</span>
+                                <span className="font-bold text-secondary text-sm">{(userProfile.first_name || '?').charAt(0)}</span>
                               )}
                             </div>
                             <div className="min-w-0">
                               <p className="font-bold font-sans text-sm text-secondary truncate">{userProfile.first_name} {userProfile.last_name}</p>
-                              <p className="text-[10px] font-semibold text-gray-400 font-sans truncate" title={item.user_id}>UID: {item.user_id?.substring(0, 13)}...</p>
+                              {activeTab !== 'users' && (
+                                <p className="text-[10px] font-semibold text-gray-400 font-sans truncate" title={item.user_id}>UID: {item.user_id?.substring(0, 13)}...</p>
+                              )}
+                              {activeTab === 'users' && (
+                                <p className="text-[10px] font-semibold text-gray-400 font-sans truncate" title={item.id}>ID: {item.id?.substring(0, 13)}...</p>
+                              )}
                             </div>
                           </div>
 
                           {/* Specific columns render */}
+                          {activeTab === 'users' && (
+                            <div className="space-y-2.5 text-xs text-secondary/80 font-sans">
+                              <div className="flex items-center justify-between">
+                                <span className="font-bold text-secondary">Email:</span>
+                                <span className="truncate max-w-[140px] font-mono text-[10px]" title={item.email}>{item.email || 'N/A'}</span>
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <span className="font-bold text-secondary">Teléfono:</span>
+                                <span>{item.phone || 'N/A'}</span>
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <span className="font-bold text-secondary">Rol:</span>
+                                <span className={`uppercase font-black text-[10px] px-2 py-0.5 rounded-full ${
+                                  item.role === 'admin' ? 'bg-purple-50 text-purple-700' : 'bg-emerald-50 text-emerald-700'
+                                }`}>{item.role || 'paciente'}</span>
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <span className="font-bold text-secondary">QRide Público:</span>
+                                <a href={`/p/${item.id}`} target="_blank" rel="noreferrer" className="text-primary hover:underline flex items-center gap-1 font-bold">
+                                  Ver Ficha <ExternalLink size={12}/>
+                                </a>
+                              </div>
+                              <div className="pt-2 border-t border-gray-100 flex items-center justify-between">
+                                <span className="font-bold text-secondary">Registrado:</span>
+                                <span>{item.created_at ? new Date(item.created_at).toLocaleDateString() : 'N/A'}</span>
+                              </div>
+                              {item.last_sign_in_at && (
+                                <div className="flex items-center justify-between">
+                                  <span className="font-bold text-secondary">Último acceso:</span>
+                                  <span>{new Date(item.last_sign_in_at).toLocaleDateString()}</span>
+                                </div>
+                              )}
+                            </div>
+                          )}
                           {activeTab === 'medical_records' && (
                             <div className="space-y-2.5 text-xs text-secondary/80 font-sans">
                               <div className="flex items-center justify-between">
@@ -1132,6 +1250,17 @@ export default function AdminPanel() {
                           >
                             <Trash size={14} />
                           </button>
+                          {activeTab === 'users' && (
+                            <a
+                              href={`/p/${item.id}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="p-2 bg-primary/10 hover:bg-primary/20 text-primary rounded-xl transition-all"
+                              title="Ver perfil público"
+                            >
+                              <ExternalLink size={14} />
+                            </a>
+                          )}
                         </div>
                       </motion.div>
                     );
@@ -1182,32 +1311,81 @@ export default function AdminPanel() {
 
               <form onSubmit={handleSave} className="space-y-6">
                 
-                {/* User ID Selector Section */}
-                <div className="bg-[#F4EFEA]/50 p-5 rounded-2xl border border-[#E8DFD8]">
-                  <div className="flex items-center justify-between mb-3">
-                    <label className="block text-xs font-bold text-secondary uppercase tracking-wider">Paciente / Propietario</label>
-                    
-                  </div>
+                {/* User ID Selector Section - HIDE for users tab */}
+                {activeTab !== 'users' && (
+                  <div className="bg-[#F4EFEA]/50 p-5 rounded-2xl border border-[#E8DFD8]">
+                    <div className="flex items-center justify-between mb-3">
+                      <label className="block text-xs font-bold text-secondary uppercase tracking-wider">Paciente / Propietario</label>
+                      
+                    </div>
 
-                  
-                    <select
-                        required
-                        disabled={!!editingItem}
-                        value={formData.user_id || ''}
-                        onChange={e => setFormData({ ...formData, user_id: e.target.value })}
-                        className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm font-semibold text-secondary focus:ring-2 focus:ring-primary outline-none"
-                      >
-                      <option value="" disabled>Selecciona un usuario...</option>
-                      {Object.entries(users).map(([id, p]) => (
-                        <option key={id} value={id}>
-                          {p.first_name} {p.last_name} ({id.substring(0, 8)}...)
-                        </option>
-                      ))}
-                    </select>
-                </div>
+                    
+                      <select
+                          required
+                          disabled={!!editingItem}
+                          value={formData.user_id || ''}
+                          onChange={e => setFormData({ ...formData, user_id: e.target.value })}
+                          className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm font-semibold text-secondary focus:ring-2 focus:ring-primary outline-none"
+                        >
+                        <option value="" disabled>Selecciona un usuario...</option>
+                        {Object.entries(users).map(([id, p]) => (
+                          <option key={id} value={id}>
+                            {p.first_name} {p.last_name} ({id.substring(0, 8)}...)
+                          </option>
+                        ))}
+                      </select>
+                  </div>
+                )}
 
                 {/* Form fields depending on selected tab */}
-                {activeTab === 'medical_records' && (
+                {activeTab === 'users' && (
+                  <div className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Nombre</label>
+                        <input 
+                          type="text" required name="first_name" placeholder="Ej. Juan" 
+                          value={formData.first_name || ''} 
+                          onChange={e => setFormData({ ...formData, first_name: e.target.value })} 
+                          className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-semibold text-secondary focus:ring-2 focus:ring-primary outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Apellidos</label>
+                        <input 
+                          type="text" required name="last_name" placeholder="Ej. Pérez" 
+                          value={formData.last_name || ''} 
+                          onChange={e => setFormData({ ...formData, last_name: e.target.value })} 
+                          className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-semibold text-secondary focus:ring-2 focus:ring-primary outline-none"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Teléfono</label>
+                        <input 
+                          type="tel" required name="phone" placeholder="Ej. 5551234567" 
+                          value={formData.phone || ''} 
+                          onChange={e => setFormData({ ...formData, phone: e.target.value })} 
+                          className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-semibold text-secondary focus:ring-2 focus:ring-primary outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Rol del sistema</label>
+                        <select 
+                          name="role" 
+                          value={formData.role || 'paciente'} 
+                          onChange={e => setFormData({ ...formData, role: e.target.value })} 
+                          className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-bold text-secondary focus:ring-2 focus:ring-primary outline-none"
+                        >
+                          <option value="paciente">Paciente (Regular)</option>
+                          <option value="admin">Administrador</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                          {activeTab === 'medical_records' && (
                   <div className="space-y-6">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <div>
@@ -1453,50 +1631,63 @@ export default function AdminPanel() {
                           <option value="patinete">Patinete Eléctrico</option>
                         </select>
                       </div>
-                      <div>
+                                                                  <div>
                         <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Marca</label>
-                        <select required value={formData.make || ''} onChange={e => setFormData({ ...formData, make: e.target.value })} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-bold text-secondary focus:ring-2 focus:ring-primary outline-none">
-    <option value="">Selecciona Marca...</option>
-    <option value="Toyota">Toyota</option>
-    <option value="Honda">Honda</option>
-    <option value="Ford">Ford</option>
-    <option value="Chevrolet">Chevrolet</option>
-    <option value="Nissan">Nissan</option>
-    <option value="Volkswagen">Volkswagen</option>
-    <option value="Mazda">Mazda</option>
-    <option value="Kia">Kia</option>
-    <option value="Hyundai">Hyundai</option>
-    <option value="Suzuki">Suzuki</option>
-    <option value="BMW">BMW</option>
-    <option value="Audi">Audi</option>
-    <option value="Mercedes-Benz">Mercedes-Benz</option>
-    <option value="Jeep">Jeep</option>
-    <option value="Otro">Otro...</option>
-  </select>
+                        <select required value={formData.make || ''} onChange={e => setFormData({ ...formData, make: e.target.value, model: '' })} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-bold text-secondary focus:ring-2 focus:ring-primary outline-none">
+                            <option value="">Selecciona Marca...</option>
+                            {formData.type === 'moto' ? MOTO_BRANDS.map(b => (
+                                <option key={b} value={b}>{b}</option>
+                            )) : CAR_BRANDS.map(b => (
+                                <option key={b} value={b}>{b}</option>
+                            ))}
+                            <option value="Otro">Otro...</option>
+                        </select>
                       </div>
                       <div>
                         <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Modelo</label>
-                        <input 
-                          type="text" required placeholder="Ej. Civic"
-                          value={formData.model || ''} 
-                          onChange={e => setFormData({ ...formData, model: e.target.value })}
-                          className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-bold text-secondary focus:ring-2 focus:ring-primary outline-none"
-                        />
+                        {formData.make && (
+                          (formData.type === 'moto' && MOTO_MODELS[formData.make]) || 
+                          (formData.type !== 'moto' && CAR_MODELS[formData.make])
+                        ) ? (
+                            <select
+                                required
+                                value={formData.model || ''}
+                                onChange={(e) => setFormData({...formData, model: e.target.value})}
+                                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-bold text-secondary focus:ring-2 focus:ring-primary outline-none"
+                            >
+                                <option value="">Selecciona Modelo...</option>
+                                {formData.type === 'moto'
+                                    ? MOTO_MODELS[formData.make].map(m => <option key={m} value={m}>{m}</option>)
+                                    : CAR_MODELS[formData.make].map(m => <option key={m} value={m}>{m}</option>)
+                                }
+                                <option value="Otro">Otro Modelo...</option>
+                            </select>
+                        ) : (
+                            <input 
+                              type="text" required 
+                              value={formData.model || ''} onChange={e => setFormData({ ...formData, model: e.target.value })} 
+                              className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-bold text-secondary focus:ring-2 focus:ring-primary outline-none" 
+                              placeholder="Ej. Civic o Italika" 
+                            />
+                        )}
                       </div>
                       <div>
                         <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Año</label>
-                        <input 
-                          type="text" required placeholder="Ej. 2022"
-                          value={formData.year || ''} 
-                          onChange={e => setFormData({ ...formData, year: e.target.value })}
+                        <select
+                          required
+                          value={formData.year || ''}
+                          onChange={(e) => setFormData({...formData, year: e.target.value})}
                           className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-bold text-secondary focus:ring-2 focus:ring-primary outline-none"
-                        />
+                        >
+                          <option value="">Selecciona Año...</option>
+                          {CAR_YEARS.map(y => (
+                            <option key={y} value={y}>{y}</option>
+                          ))}
+                        </select>
                       </div>
                       <div>
                         <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Placa (Matrícula)</label>
-                        <input 
-                          type="text" placeholder="Ej. AB-1234-C"
-                          value={formData.plates || ''} 
+                        <input type="text" required placeholder="Ej. AB-1234-C" value={formData.plates || ''} 
                           onChange={e => setFormData({ ...formData, plates: e.target.value })}
                           className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-bold text-secondary focus:ring-2 focus:ring-primary outline-none"
                         />

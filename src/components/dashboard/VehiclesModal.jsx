@@ -1,3 +1,4 @@
+import { CAR_BRANDS, CAR_MODELS, CAR_YEARS, MOTO_BRANDS, MOTO_MODELS } from '../../utils/catalogs';
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Car, Info, Plus } from 'lucide-react';
@@ -7,6 +8,7 @@ export function VehiclesModal({ isOpen, onClose, user }) {
   const [loading, setLoading] = useState(false);
   const [vehicles, setVehicles] = useState([]);
   const [isAdding, setIsAdding] = useState(false);
+  const [editingId, setEditingId] = useState(null);
 
   const [formData, setFormData] = useState({
     type: 'auto',
@@ -46,7 +48,7 @@ export function VehiclesModal({ isOpen, onClose, user }) {
     setLoading(true);
     
     try {
-      const newVehicle = {
+      const vehiclePayload = {
         user_id: user.id,
         type: formData.type,
         make: formData.brand,
@@ -59,23 +61,60 @@ export function VehiclesModal({ isOpen, onClose, user }) {
         is_active_qr: true
       };
 
-      const { data, error } = await supabase
-        .from('vehicles')
-        .insert([newVehicle])
-        .select();
+      if (editingId) {
+        const { data, error } = await supabase
+          .from('vehicles')
+          .update(vehiclePayload)
+          .eq('id', editingId)
+          .select();
+        if (error) throw error;
+        setVehicles(vehicles.map(v => v.id === editingId ? data[0] : v));
+      } else {
+        const { data, error } = await supabase
+          .from('vehicles')
+          .insert([vehiclePayload])
+          .select();
+        if (error) throw error;
+        setVehicles([data[0], ...vehicles]);
+      }
 
-      if (error) throw error;
-      
-      setVehicles([data[0], ...vehicles]);
       setIsAdding(false);
+      setEditingId(null);
       setFormData({
         type: 'auto', brand: '', model: '', year: '', plate: '', insurance_name: '', policy_number: '', vin: ''
       });
     } catch (error) {
       console.error('Error saving vehicle:', error);
-      alert('Hubo un error al guardar el vehículo.');
+      alert('Error de base de datos: ' + (error.message || 'Error desconocido'));
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleEdit = (v) => {
+    setFormData({
+      type: v.type || 'auto',
+      brand: v.make || '',
+      model: v.model || '',
+      year: v.year || '',
+      plate: v.plates || '',
+      insurance_name: v.insurance_provider || '',
+      policy_number: v.policy_number || '',
+      vin: v.vin || ''
+    });
+    setEditingId(v.id);
+    setIsAdding(true);
+  };
+
+  const handleDelete = async (id) => {
+    if (!window.confirm('¿Eliminar este vehículo?')) return;
+    try {
+      const { error } = await supabase.from('vehicles').delete().eq('id', id);
+      if (error) throw error;
+      setVehicles(vehicles.filter(v => v.id !== id));
+    } catch (error) {
+      console.error('Error deleting vehicle:', error);
+      alert('Error eliminando vehículo: ' + error.message);
     }
   };
 
@@ -122,13 +161,23 @@ export function VehiclesModal({ isOpen, onClose, user }) {
                     </div>
                   ) : (
                     vehicles.map(v => (
-                      <div key={v.id} className="bg-white p-4 rounded-2xl border border-[#E8DFD8] flex justify-between items-center">
+                      <div key={v.id} className="bg-white p-4 rounded-2xl border border-[#E8DFD8] flex justify-between items-center group">
                         <div>
                           <p className="font-bold">{v.make} {v.model} ({v.year})</p>
                           <p className="text-xs text-secondary/60">Placa: {v.plates} • Seguro: {v.insurance_provider || 'N/A'}</p>
                         </div>
-                        <div className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-bold uppercase">
-                          Activo en QR
+                        <div className="flex flex-col md:flex-row items-end md:items-center gap-2">
+                          <div className="flex gap-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                            <button onClick={() => handleEdit(v)} className="p-2 text-primary hover:bg-primary/10 rounded-xl transition-colors">
+                              Editar
+                            </button>
+                            <button onClick={() => handleDelete(v.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-xl transition-colors">
+                              Eliminar
+                            </button>
+                          </div>
+                          <div className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-[10px] font-bold uppercase whitespace-nowrap">
+                            Activo
+                          </div>
                         </div>
                       </div>
                     ))
@@ -144,8 +193,21 @@ export function VehiclesModal({ isOpen, onClose, user }) {
               )}
 
               {isAdding && (
-                <form onSubmit={handleSave} className="space-y-4 bg-white p-6 rounded-2xl shadow-sm border border-[#E8DFD8]">
-                  <h4 className="font-black text-lg border-b border-[#E8DFD8] pb-2 mb-4">Nuevo Vehículo</h4>
+                <form onSubmit={handleSave} className="space-y-6 bg-white p-6 rounded-2xl border border-[#E8DFD8]">
+                  <div className="flex justify-between items-center border-b border-[#E8DFD8] pb-4">
+                    <h4 className="font-black text-lg">{editingId ? 'Editar Vehículo' : 'Datos del Vehículo'}</h4>
+                    <button 
+                      type="button"
+                      onClick={() => {
+                        setIsAdding(false);
+                        setEditingId(null);
+                        setFormData({ type: 'auto', brand: '', model: '', year: '', plate: '', insurance_name: '', policy_number: '', vin: '' });
+                      }}
+                      className="text-sm font-bold text-secondary/50 hover:text-secondary"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
@@ -164,33 +226,63 @@ export function VehiclesModal({ isOpen, onClose, user }) {
                     </div>
                     <div>
                       <label className="block text-sm font-bold text-secondary/80 mb-2">Marca</label>
-                      <input 
-                        type="text" required
-                        value={formData.brand}
-                        onChange={(e) => setFormData({...formData, brand: e.target.value})}
-                        className="w-full bg-[#F4EFEA] border-none rounded-xl px-4 py-3 text-secondary focus:ring-2 focus:ring-primary"
-                        placeholder="Ej. Honda"
-                      />
+                      <select
+                          required
+                          value={formData.brand}
+                          onChange={(e) => setFormData({...formData, brand: e.target.value, model: ''})}
+                          className="w-full bg-[#F4EFEA] border-none rounded-xl px-4 py-3 text-secondary focus:ring-2 focus:ring-primary"
+                        >
+                          <option value="">Selecciona Marca...</option>
+                          {formData.type === 'moto' ? MOTO_BRANDS.map(b => (
+                            <option key={b} value={b}>{b}</option>
+                          )) : CAR_BRANDS.map(b => (
+                            <option key={b} value={b}>{b}</option>
+                          ))}
+                          <option value="Otra">Otra / No Aplicable</option>
+                        </select>
                     </div>
                     <div>
                       <label className="block text-sm font-bold text-secondary/80 mb-2">Modelo</label>
-                      <input 
-                        type="text" required
-                        value={formData.model}
-                        onChange={(e) => setFormData({...formData, model: e.target.value})}
-                        className="w-full bg-[#F4EFEA] border-none rounded-xl px-4 py-3 text-secondary focus:ring-2 focus:ring-primary"
-                        placeholder="Ej. Civic"
-                      />
+                      {formData.brand && (
+                          (formData.type === 'moto' && MOTO_MODELS[formData.brand]) ||
+                          (formData.type !== 'moto' && CAR_MODELS[formData.brand]) 
+                        ) ? (
+                            <select
+                                required
+                                value={formData.model}
+                                onChange={(e) => setFormData({...formData, model: e.target.value})}
+                                className="w-full bg-[#F4EFEA] border-none rounded-xl px-4 py-3 text-secondary focus:ring-2 focus:ring-primary"
+                            >
+                                <option value="">Selecciona Modelo...</option>
+                                {formData.type === 'moto' 
+                                  ? MOTO_MODELS[formData.brand].map(m => <option key={m} value={m}>{m}</option>)
+                                  : CAR_MODELS[formData.brand].map(m => <option key={m} value={m}>{m}</option>)
+                                }
+                                <option value="Otro">Otro Modelo...</option>
+                            </select>
+                        ) : (
+                            <input 
+                              type="text" required
+                              value={formData.model}
+                              onChange={(e) => setFormData({...formData, model: e.target.value})}
+                              className="w-full bg-[#F4EFEA] border-none rounded-xl px-4 py-3 text-secondary focus:ring-2 focus:ring-primary"
+                              placeholder="Escribe el modelo..."
+                            />
+                        )}
                     </div>
                     <div>
                       <label className="block text-sm font-bold text-secondary/80 mb-2">Año</label>
-                      <input 
-                        type="text" required
-                        value={formData.year}
-                        onChange={(e) => setFormData({...formData, year: e.target.value})}
-                        className="w-full bg-[#F4EFEA] border-none rounded-xl px-4 py-3 text-secondary focus:ring-2 focus:ring-primary"
-                        placeholder="Ej. 2022"
-                      />
+                      <select
+                          required
+                          value={formData.year}
+                          onChange={(e) => setFormData({...formData, year: e.target.value})}
+                          className="w-full bg-[#F4EFEA] border-none rounded-xl px-4 py-3 text-secondary focus:ring-2 focus:ring-primary"
+                        >
+                          <option value="">Selecciona Año...</option>
+                          {CAR_YEARS.map(y => (
+                            <option key={y} value={y}>{y}</option>
+                          ))}
+                        </select>
                     </div>
                     <div>
                         <label className="block text-sm font-bold text-secondary/80 mb-2">
