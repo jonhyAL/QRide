@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { LayoutDashboard, User, Car, Settings, FileText } from 'lucide-react';
+import { LayoutDashboard, User, Car, Settings, FileText, Radio } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 export function MobileNav({ onAction }) {
@@ -9,10 +9,10 @@ export function MobileNav({ onAction }) {
 
   const navItems = [
     { id: 'dashboard', name: 'Panel', icon: LayoutDashboard, path: '/dashboard', tab: null },
+    { id: 'telemetry', name: 'GPS', icon: Radio, path: '/dashboard', action: 'telemetry' },
     { id: 'vehicles', name: 'Vehículos', icon: Car, path: '/dashboard', action: 'vehicles' },
-    { id: 'documents', name: 'Documentos', icon: FileText, path: '/dashboard', action: 'documents' },
+    { id: 'documents', name: 'Docs', icon: FileText, path: '/dashboard', action: 'documents' },
     { id: 'profile', name: 'Perfil', icon: User, path: '/account', tab: 'profile' },
-    { id: 'settings', name: 'Ajustes', icon: Settings, path: '/account', tab: 'preferences' },
   ];
 
   const handleNavClick = (item) => {

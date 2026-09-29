@@ -1,6 +1,4 @@
-import React from 'react';
-import { motion } from 'framer-motion';
-import { LayoutDashboard, User, FileText, Settings, LogOut, Car } from 'lucide-react';
+import { LayoutDashboard, User, FileText, Settings, LogOut, Car, Radio } from 'lucide-react';
 import { QrCode } from '@phosphor-icons/react';
 import { supabase } from '../../lib/supabase';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -16,6 +14,7 @@ export function Sidebar({ user, onAction }) {
 
   const navItems = [
     { id: 'dashboard', name: 'Panel', icon: LayoutDashboard, path: '/dashboard' },
+    { id: 'telemetry', name: 'GPS Telemetría', icon: Radio, path: '/dashboard' },
     { id: 'profile', name: 'Mi Perfil', icon: User, path: '/dashboard' },
     { id: 'vehicles', name: 'Vehículos', icon: Car, path: '/dashboard' },
     { id: 'documents', name: 'Documentos', icon: FileText, path: '/dashboard' },

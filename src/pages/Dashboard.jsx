@@ -15,6 +15,7 @@ import { MedicalRecordModal } from '../components/dashboard/MedicalRecordModal';
 import { EmergencyContactModal } from '../components/dashboard/EmergencyContactModal';
 import { VehiclesModal } from '../components/dashboard/VehiclesModal';
 import { DocumentsModal } from '../components/dashboard/DocumentsModal';
+import { TelemetryHubModal } from '../components/telemetry/TelemetryHubModal';
 
 export default function Dashboard() {
   const dragX = useMotionValue(0);
@@ -43,8 +44,9 @@ export default function Dashboard() {
 
   const [isVehiclesModalOpen, setIsVehiclesModalOpen] = useState(false);
   const [isDocumentsModalOpen, setIsDocumentsModalOpen] = useState(false);
+  const [isTelemetryModalOpen, setIsTelemetryModalOpen] = useState(false);
   const [isEmergencySliderOpen, setIsEmergencySliderOpen] = useState(false);
-  const isAnyModalOpen = isEditMedicalModalOpen || isAddContactModalOpen || isQRModalOpen || isUnderConstructionModalOpen || isVehiclesModalOpen || isDocumentsModalOpen || isEmergencySliderOpen;
+  const isAnyModalOpen = isEditMedicalModalOpen || isAddContactModalOpen || isQRModalOpen || isUnderConstructionModalOpen || isVehiclesModalOpen || isDocumentsModalOpen || isTelemetryModalOpen || isEmergencySliderOpen;
 
   const handleSidebarAction = (actionId) => {
     if (actionId === 'profile') {
@@ -55,6 +57,8 @@ export default function Dashboard() {
       setIsVehiclesModalOpen(true);
     } else if (actionId === 'documents') {
       setIsDocumentsModalOpen(true);
+    } else if (actionId === 'telemetry') {
+      setIsTelemetryModalOpen(true);
     } else {
       setConstructionFeatureName(actionId);
       setIsUnderConstructionModalOpen(true);
@@ -155,6 +159,12 @@ export default function Dashboard() {
     };
     getUser();
   }, [navigate, fetchDashboardData]);
+
+  useEffect(() => {
+    if (location.state?.action) {
+      handleSidebarAction(location.state.action);
+    }
+  }, [location.state]);
 
   if (!user || loadingData) return (
     <div className="min-h-screen bg-slate-50 font-sans flex relative overflow-hidden">
@@ -288,6 +298,11 @@ return (
         isOpen={isDocumentsModalOpen}
         onClose={() => setIsDocumentsModalOpen(false)}
         user={user}
+      />
+
+      <TelemetryHubModal
+        isOpen={isTelemetryModalOpen}
+        onClose={() => setIsTelemetryModalOpen(false)}
       />
 
 
