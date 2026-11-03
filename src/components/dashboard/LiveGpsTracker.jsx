@@ -346,67 +346,102 @@ export function LiveGpsTracker({ isOpen = true, onClose, isModal = false }) {
         </div>
       </div>
 
-      {/* Selector de Modos de Simulación y Proveedores de Mapa */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 text-xs">
+      {/* Selector de Modos de Simulación y Proveedores de Mapa (Sin Scroll, Totalmente Adaptativo) */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 mb-4 text-xs">
         
         {/* Selector de Estados */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
-          <span className="font-bold text-slate-400 uppercase text-[10px] tracking-wider shrink-0 mr-1">Estado:</span>
-          <button 
-            onClick={() => handleStateChange('moving')}
-            className={`px-3 py-1.5 rounded-xl font-bold transition-all shrink-0 ${vehicleState === 'moving' ? 'bg-emerald-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
-          >
-            En Movimiento (1 Hz)
-          </button>
-          <button 
-            onClick={() => handleStateChange('stopped')}
-            className={`px-3 py-1.5 rounded-xl font-bold transition-all shrink-0 ${vehicleState === 'stopped' ? 'bg-amber-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
-          >
-            Detenido
-          </button>
-          <button 
-            onClick={() => handleStateChange('sleep')}
-            className={`px-3 py-1.5 rounded-xl font-bold transition-all shrink-0 ${vehicleState === 'sleep' ? 'bg-indigo-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
-          >
-            Sleep
-          </button>
-          <button 
-            onClick={() => handleStateChange('no_signal')}
-            className={`px-3 py-1.5 rounded-xl font-bold transition-all shrink-0 ${vehicleState === 'no_signal' ? 'bg-rose-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
-          >
-            Sin Fix
-          </button>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+          <span className="font-extrabold text-slate-400 uppercase text-[10px] tracking-wider flex items-center gap-1.5 shrink-0">
+            <span className="w-1.5 h-1.5 rounded-full bg-cyan-500 animate-pulse" />
+            Estado simulado:
+          </span>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 w-full sm:w-auto">
+            <button 
+              type="button"
+              onClick={() => handleStateChange('moving')}
+              className={`flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl font-bold transition-all text-center ${
+                vehicleState === 'moving' 
+                  ? 'bg-emerald-600 text-white shadow-sm scale-[1.02]' 
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+              <span className="truncate">En Movimiento</span>
+            </button>
+            <button 
+              type="button"
+              onClick={() => handleStateChange('stopped')}
+              className={`flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl font-bold transition-all text-center ${
+                vehicleState === 'stopped' 
+                  ? 'bg-amber-600 text-white shadow-sm scale-[1.02]' 
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" />
+              <span className="truncate">Detenido</span>
+            </button>
+            <button 
+              type="button"
+              onClick={() => handleStateChange('sleep')}
+              className={`flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl font-bold transition-all text-center ${
+                vehicleState === 'sleep' 
+                  ? 'bg-indigo-600 text-white shadow-sm scale-[1.02]' 
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              <span className="w-2 h-2 rounded-full bg-indigo-400 shrink-0" />
+              <span className="truncate">Modo Sleep</span>
+            </button>
+            <button 
+              type="button"
+              onClick={() => handleStateChange('no_signal')}
+              className={`flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl font-bold transition-all text-center ${
+                vehicleState === 'no_signal' 
+                  ? 'bg-rose-600 text-white shadow-sm scale-[1.02]' 
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              <span className="w-2 h-2 rounded-full bg-rose-400 shrink-0" />
+              <span className="truncate">Sin Señal</span>
+            </button>
+          </div>
         </div>
 
         {/* Selector de Tipo de Mapa Real (Google Maps Calles / Satélite / Cyber) */}
-        <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl self-start sm:self-auto">
-          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-2 flex items-center gap-1">
-            <Layers size={12} /> Mapa:
+        <div className="flex items-center gap-1 bg-slate-100/90 p-1 rounded-xl self-stretch sm:self-auto border border-slate-200/60">
+          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-2 flex items-center gap-1 shrink-0">
+            <Layers size={13} />
+            <span className="hidden sm:inline">Capa:</span>
           </span>
-          <button
-            onClick={() => setMapProvider('googleRoads')}
-            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
-              mapProvider === 'googleRoads' ? 'bg-white text-indigo-950 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            Google Calles
-          </button>
-          <button
-            onClick={() => setMapProvider('googleSatellite')}
-            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
-              mapProvider === 'googleSatellite' ? 'bg-white text-indigo-950 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            Satélite
-          </button>
-          <button
-            onClick={() => setMapProvider('cartoDark')}
-            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
-              mapProvider === 'cartoDark' ? 'bg-white text-indigo-950 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            Cyber Oscuro
-          </button>
+          <div className="grid grid-cols-3 gap-1 flex-1 sm:flex-initial">
+            <button
+              type="button"
+              onClick={() => setMapProvider('googleRoads')}
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all text-center ${
+                mapProvider === 'googleRoads' ? 'bg-white text-indigo-950 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Google Calles
+            </button>
+            <button
+              type="button"
+              onClick={() => setMapProvider('googleSatellite')}
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all text-center ${
+                mapProvider === 'googleSatellite' ? 'bg-white text-indigo-950 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Satélite
+            </button>
+            <button
+              type="button"
+              onClick={() => setMapProvider('cartoDark')}
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all text-center ${
+                mapProvider === 'cartoDark' ? 'bg-white text-indigo-950 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Cyber Oscuro
+            </button>
+          </div>
         </div>
       </div>
 
