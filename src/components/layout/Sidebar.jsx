@@ -2,8 +2,9 @@ import { LayoutDashboard, User, FileText, Settings, LogOut, Car, Radio } from 'l
 import { QrCode } from '@phosphor-icons/react';
 import { supabase } from '../../lib/supabase';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { motion } from 'framer-motion';
 
-export function Sidebar({ user, onAction }) {
+export function Sidebar({ user, onAction, activeModal }) {
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -13,13 +14,60 @@ export function Sidebar({ user, onAction }) {
   };
 
   const navItems = [
-    { id: 'dashboard', name: 'Panel', icon: LayoutDashboard, path: '/dashboard' },
-    { id: 'telemetry', name: 'GPS Telemetría', icon: Radio, path: '/dashboard' },
-    { id: 'profile', name: 'Mi Perfil', icon: User, path: '/dashboard' },
-    { id: 'vehicles', name: 'Vehículos', icon: Car, path: '/dashboard' },
-    { id: 'documents', name: 'Documentos', icon: FileText, path: '/dashboard' },
-    { id: 'settings', name: 'Ajustes', icon: Settings, path: '/dashboard' },
+    { id: 'dashboard', name: 'Panel', icon: LayoutDashboard, path: '/dashboard', type: 'section' },
+    { id: 'telemetry', name: 'GPS Telemetría', icon: Radio, path: '/telemetry', type: 'section' },
+    { id: 'profile', name: 'Mi Perfil', icon: User, path: '/account', tab: 'profile', type: 'section' },
+    { id: 'vehicles', name: 'Vehículos', icon: Car, action: 'vehicles', type: 'modal' },
+    { id: 'documents', name: 'Documentos', icon: FileText, action: 'documents', type: 'modal' },
+    { id: 'settings', name: 'Ajustes', icon: Settings, path: '/account', tab: 'preferences', type: 'section' },
   ];
+
+  const isItemActive = (item) => {
+    // Los modales solo se iluminan si ese modal específico está abierto / activo
+    if (item.type === 'modal' || item.action) {
+      return activeModal === (item.action || item.id);
+    }
+
+    // Secciones principales: no se iluminan si hay un modal activo
+    if (activeModal) return false;
+
+    if (item.path === '/dashboard') {
+      return location.pathname === '/dashboard';
+    }
+
+    if (item.path === '/telemetry') {
+      return location.pathname === '/telemetry';
+    }
+
+    if (item.path === '/account') {
+      if (location.pathname !== '/account') return false;
+      const currentTab = location.state?.tab || 'profile';
+      return item.tab ? item.tab === currentTab : currentTab === 'profile';
+    }
+
+    return location.pathname === item.path;
+  };
+
+  const handleItemClick = (item) => {
+    if (item.type === 'modal' || item.action) {
+      if (onAction) {
+        onAction(item.action || item.id);
+      }
+      return;
+    }
+
+    if (item.id === 'dashboard') {
+      navigate('/dashboard');
+    } else if (item.id === 'telemetry') {
+      navigate('/telemetry');
+    } else if (item.id === 'profile') {
+      navigate('/account', { state: { tab: 'profile' } });
+    } else if (item.id === 'settings') {
+      navigate('/account', { state: { tab: 'preferences' } });
+    } else if (item.path) {
+      navigate(item.path);
+    }
+  };
 
   return (
     <div className="hidden md:flex flex-col w-[260px] h-[calc(100vh-32px)] bg-secondary text-white rounded-[2rem] shadow-[0_20px_40px_-15px_rgba(44,37,77,0.5)] fixed left-4 top-4 z-40 overflow-hidden">
@@ -33,26 +81,42 @@ export function Sidebar({ user, onAction }) {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 px-4 space-y-2">
+      <nav className="flex-1 px-4 space-y-2 relative">
         {navItems.map((item) => {
-          const isActive = location.pathname === item.path && item.id === 'dashboard'; // Por ahora marcamos activo solo Panel
+          const isActive = isItemActive(item);
           const Icon = item.icon;
+
           return (
-            <button
+            <motion.button
               key={item.id}
-              onClick={() => {
-                if (item.id === 'dashboard') navigate('/dashboard');
-                else if (onAction) onAction(item.id);
-              }}
-              className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl font-bold transition-all duration-300
-                ${isActive 
-                  ? 'bg-primary text-white shadow-md shadow-primary/20' 
-                  : 'text-gray-400 hover:bg-white/10 hover:text-white'
-                }`}
+              whileTap={{ scale: 0.96 }}
+              whileHover={{ scale: 1.02 }}
+              onClick={() => handleItemClick(item)}
+              className={`relative w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl font-bold transition-colors duration-200 text-left select-none z-10 ${
+                isActive 
+                  ? 'text-white' 
+                  : 'text-gray-400 hover:text-white hover:bg-white/5'
+              }`}
             >
-              <Icon size={20} strokeWidth={isActive ? 2.5 : 2} />
-              {item.name}
-            </button>
+              {/* Indicador de píldora activa con animación de transición suave */}
+              {isActive && (
+                <motion.div
+                  layoutId="sidebarActivePill"
+                  className="absolute inset-0 bg-primary rounded-2xl shadow-lg shadow-primary/40 -z-10"
+                  transition={{
+                    type: "spring",
+                    stiffness: 380,
+                    damping: 30
+                  }}
+                />
+              )}
+              <Icon 
+                size={20} 
+                strokeWidth={isActive ? 2.5 : 2} 
+                className="relative z-10 transition-transform duration-200" 
+              />
+              <span className="relative z-10 text-sm tracking-wide">{item.name}</span>
+            </motion.button>
           );
         })}
       </nav>
@@ -74,7 +138,7 @@ export function Sidebar({ user, onAction }) {
         </div>
         <button
           onClick={handleSignOut}
-          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-white/5 hover:bg-red-500/20 text-gray-300 hover:text-red-400 rounded-xl font-bold transition-colors"
+          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-white/5 hover:bg-red-500/20 text-gray-300 hover:text-red-400 rounded-xl font-bold transition-all duration-200 active:scale-98"
         >
           <LogOut size={16} strokeWidth={2.5} />
           Cerrar Sesión

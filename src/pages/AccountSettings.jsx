@@ -1,3 +1,6 @@
+import { MobileNav } from '../components/layout/MobileNav';
+import { VehiclesModal } from '../components/dashboard/VehiclesModal';
+import { DocumentsModal } from '../components/dashboard/DocumentsModal';
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import * as XLSX from 'xlsx';
@@ -14,6 +17,9 @@ export default function AccountSettings() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState(location.state?.tab || 'profile');
+  const [isVehiclesModalOpen, setIsVehiclesModalOpen] = useState(false);
+  const [isDocumentsModalOpen, setIsDocumentsModalOpen] = useState(false);
+  const activeModal = isVehiclesModalOpen ? 'vehicles' : isDocumentsModalOpen ? 'documents' : null;
   
   // Profile Form States
   const [firstName, setFirstName] = useState('');
@@ -662,6 +668,32 @@ export default function AccountSettings() {
           Cerrar Sesión
         </button>
       </div>
+
+      {/* Navegación móvil */}
+      <MobileNav 
+        onAction={(actionId) => {
+          if (actionId === 'vehicles') setIsVehiclesModalOpen(true);
+          else if (actionId === 'documents') setIsDocumentsModalOpen(true);
+          else navigate('/dashboard', { state: { action: actionId } });
+        }} 
+        activeModal={activeModal} 
+      />
+
+      {/* Modal de Vehículos */}
+      <VehiclesModal 
+        isOpen={isVehiclesModalOpen} 
+        onClose={() => setIsVehiclesModalOpen(false)} 
+        user={user}
+        userId={user?.id} 
+      />
+
+      {/* Modal de Documentos */}
+      <DocumentsModal 
+        isOpen={isDocumentsModalOpen} 
+        onClose={() => setIsDocumentsModalOpen(false)} 
+        user={user}
+        userId={user?.id} 
+      />
 
       {/* Global CSS injected for hiding scrollbar if needed */}
                   <style dangerouslySetInnerHTML={{__html: `

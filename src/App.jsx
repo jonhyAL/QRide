@@ -5,6 +5,7 @@ import Dashboard from "./pages/Dashboard";
 import PublicProfile from "./pages/PublicProfile";
 import AccountSettings from "./pages/AccountSettings";
 import AdminPanel from "./pages/AdminPanel";
+import Telemetry from "./pages/Telemetry";
 import { ProtectedRoute } from "./components/layout/ProtectedRoute";
 
 function App() {
@@ -26,6 +27,14 @@ function App() {
           element={
             <ProtectedRoute>
               <AccountSettings />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/telemetry" 
+          element={
+            <ProtectedRoute>
+              <Telemetry />
             </ProtectedRoute>
           } 
         />

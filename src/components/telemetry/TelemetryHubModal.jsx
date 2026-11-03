@@ -2,39 +2,32 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Radio, 
-  ShieldCheck, 
   AlertOctagon, 
   Route, 
-  Gauge, 
-  Database, 
-  BatteryCharging, 
-  Milestone,
+  ShieldCheck,
   X,
   Sparkles,
-  ArrowLeft
+  Eye,
+  Camera
 } from 'lucide-react';
 
 import { LiveGpsTracker } from '../dashboard/LiveGpsTracker';
 import { GeofencingView } from './GeofencingView';
 import { CrashDetectionView } from './CrashDetectionView';
-import { RouteHistoryView } from './RouteHistoryView';
-import { SpeedAlertsView } from './SpeedAlertsView';
-import { OfflineBufferingView } from './OfflineBufferingView';
-import { DeviceBatteryView } from './DeviceBatteryView';
-import { MileageLogView } from './MileageLogView';
+import { HelmetSafetyCheckView } from './HelmetSafetyCheckView';
+import { ProximityAlertView } from './ProximityAlertView';
 
 export function TelemetryHubModal({ isOpen, onClose, initialTab = 'gps' }) {
   const [activeTab, setActiveTab] = useState(initialTab);
 
+  // Tabs optimizados y limpios: Eliminadas pestañas innecesarias (buffer microSD, sliders de batería redundantes y bitácoras aisladas)
+  // Añadidas las funciones de visión artificial con cámara y normativa mexicana
   const tabs = [
-    { id: 'gps', label: '1. GPS en Vivo', icon: Radio, badge: '1 Hz' },
-    { id: 'geofence', label: '2. Geocercas', icon: ShieldCheck, badge: 'Histéresis' },
-    { id: 'crash', label: '3. Caídas SOS', icon: AlertOctagon, badge: 'Sensor Fusion' },
-    { id: 'routes', label: '4. Rutas', icon: Route, badge: 'RDP' },
-    { id: 'speed', label: '5. Velocidad', icon: Gauge, badge: 'Doppler' },
-    { id: 'buffer', label: '6. Sin Señal', icon: Database, badge: 'MicroSD' },
-    { id: 'battery', label: '7. Batería', icon: BatteryCharging, badge: 'Last Gasp' },
-    { id: 'mileage', label: '8. Kilometraje', icon: Milestone, badge: 'Haversine' },
+    { id: 'gps', label: '1. GPS en Vivo', icon: Radio, badge: '1 Hz Satelital' },
+    { id: 'crash', label: '2. Caídas SOS', icon: AlertOctagon, badge: 'Sensor Fusion' },
+    { id: 'geofence', label: '3. Geocercas', icon: ShieldCheck, badge: 'Zonas Seguras' },
+    { id: 'helmet', label: '4. Inspección Casco IA', icon: Camera, badge: 'NOM-206 México' },
+    { id: 'proximity', label: '5. Radar Proximidad', icon: Eye, badge: 'Audio ADAS' },
   ];
 
   if (!isOpen) return null;
@@ -48,7 +41,7 @@ export function TelemetryHubModal({ isOpen, onClose, initialTab = 'gps' }) {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           onClick={onClose}
-          className="absolute inset-0 bg-slate-950/70 backdrop-blur-md"
+          className="absolute inset-0 bg-slate-950/75 backdrop-blur-md"
         />
 
         {/* Contenedor Principal del Hub */}
@@ -66,10 +59,10 @@ export function TelemetryHubModal({ isOpen, onClose, initialTab = 'gps' }) {
               </div>
               <div>
                 <h2 className="text-lg md:text-xl font-black tracking-tight flex items-center gap-2">
-                  Hub de Telemetría Satelital & Hardware QRide
+                  Hub de Telemetría Satelital, Hardware & ADAS QRide
                 </h2>
                 <p className="text-xs text-slate-400 font-medium">
-                  Monitoreo de sensores, protección activa y gestión de energía en tiempo real
+                  Rastreo en tiempo real, detección de caídas, inspección de casco (NOM-206) y radar de proximidad
                 </p>
               </div>
             </div>
@@ -88,6 +81,7 @@ export function TelemetryHubModal({ isOpen, onClose, initialTab = 'gps' }) {
             {tabs.map((tab) => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.id;
+              const isHighlight = tab.id === 'helmet' || tab.id === 'proximity';
               return (
                 <button
                   key={tab.id}
@@ -98,10 +92,12 @@ export function TelemetryHubModal({ isOpen, onClose, initialTab = 'gps' }) {
                       : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
                   }`}
                 >
-                  <Icon size={16} className={isActive ? 'text-cyan-400' : 'text-slate-400'} />
+                  <Icon size={16} className={isActive ? (isHighlight ? 'text-rose-400' : 'text-cyan-400') : 'text-slate-400'} />
                   <span>{tab.label}</span>
                   <span className={`text-[9px] uppercase px-1.5 py-0.5 rounded-md font-mono ${
-                    isActive ? 'bg-cyan-500/20 text-cyan-300' : 'bg-slate-100 text-slate-500'
+                    isActive 
+                      ? (isHighlight ? 'bg-rose-500/20 text-rose-300' : 'bg-cyan-500/20 text-cyan-300')
+                      : 'bg-slate-100 text-slate-500'
                   }`}>
                     {tab.badge}
                   </span>
@@ -115,26 +111,17 @@ export function TelemetryHubModal({ isOpen, onClose, initialTab = 'gps' }) {
             {activeTab === 'gps' && (
               <LiveGpsTracker isModal={false} />
             )}
-            {activeTab === 'geofence' && (
-              <GeofencingView />
-            )}
             {activeTab === 'crash' && (
               <CrashDetectionView />
             )}
-            {activeTab === 'routes' && (
-              <RouteHistoryView />
+            {activeTab === 'geofence' && (
+              <GeofencingView />
             )}
-            {activeTab === 'speed' && (
-              <SpeedAlertsView />
+            {activeTab === 'helmet' && (
+              <HelmetSafetyCheckView />
             )}
-            {activeTab === 'buffer' && (
-              <OfflineBufferingView />
-            )}
-            {activeTab === 'battery' && (
-              <DeviceBatteryView />
-            )}
-            {activeTab === 'mileage' && (
-              <MileageLogView />
+            {activeTab === 'proximity' && (
+              <ProximityAlertView />
             )}
           </div>
         </motion.div>

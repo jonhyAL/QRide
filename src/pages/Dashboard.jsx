@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion';
 import { Heartbeat, Drop, Ruler, Scales, Phone, ArrowUpRight } from '@phosphor-icons/react';
-import { Share2, Download, AlertCircle, Trash, Sparkles, Send, X, Bot, MessageCircle, Hospital, ShieldAlert, Maximize2 } from 'lucide-react';
+import { Share2, Download, AlertCircle, Trash, Sparkles, Send, X, Hospital, ShieldAlert, Maximize2 } from 'lucide-react';
 
 import { QRCodeSVG, QRCodeCanvas } from 'qrcode.react';
 import jsPDF from 'jspdf';
@@ -15,7 +15,6 @@ import { MedicalRecordModal } from '../components/dashboard/MedicalRecordModal';
 import { EmergencyContactModal } from '../components/dashboard/EmergencyContactModal';
 import { VehiclesModal } from '../components/dashboard/VehiclesModal';
 import { DocumentsModal } from '../components/dashboard/DocumentsModal';
-import { TelemetryHubModal } from '../components/telemetry/TelemetryHubModal';
 
 export default function Dashboard() {
   const dragX = useMotionValue(0);
@@ -35,18 +34,17 @@ export default function Dashboard() {
   // Modal states
   const [isEditMedicalModalOpen, setIsEditMedicalModalOpen] = useState(false);
   const [isAddContactModalOpen, setIsAddContactModalOpen] = useState(false);
-  const [isChatbotOpen, setIsChatbotOpen] = useState(false);
   const [isQRModalOpen, setIsQRModalOpen] = useState(false);
   
   // Custom action states for Sidebar missing modules
   const [isUnderConstructionModalOpen, setIsUnderConstructionModalOpen] = useState(false);
   const [constructionFeatureName, setConstructionFeatureName] = useState('');
 
-  const [isVehiclesModalOpen, setIsVehiclesModalOpen] = useState(false);
-  const [isDocumentsModalOpen, setIsDocumentsModalOpen] = useState(false);
-  const [isTelemetryModalOpen, setIsTelemetryModalOpen] = useState(false);
+  const [isVehiclesModalOpen, setIsVehiclesModalOpen] = useState(() => location.state?.action === 'vehicles');
+  const [isDocumentsModalOpen, setIsDocumentsModalOpen] = useState(() => location.state?.action === 'documents');
   const [isEmergencySliderOpen, setIsEmergencySliderOpen] = useState(false);
-  const isAnyModalOpen = isEditMedicalModalOpen || isAddContactModalOpen || isQRModalOpen || isUnderConstructionModalOpen || isVehiclesModalOpen || isDocumentsModalOpen || isTelemetryModalOpen || isEmergencySliderOpen;
+  const activeModal = isVehiclesModalOpen ? 'vehicles' : isDocumentsModalOpen ? 'documents' : null;
+  const isAnyModalOpen = isEditMedicalModalOpen || isAddContactModalOpen || isQRModalOpen || isUnderConstructionModalOpen || isVehiclesModalOpen || isDocumentsModalOpen || isEmergencySliderOpen;
 
   const handleSidebarAction = (actionId) => {
     if (actionId === 'profile') {
@@ -58,7 +56,7 @@ export default function Dashboard() {
     } else if (actionId === 'documents') {
       setIsDocumentsModalOpen(true);
     } else if (actionId === 'telemetry') {
-      setIsTelemetryModalOpen(true);
+      navigate('/telemetry');
     } else {
       setConstructionFeatureName(actionId);
       setIsUnderConstructionModalOpen(true);
@@ -162,7 +160,9 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (location.state?.action) {
-      handleSidebarAction(location.state.action);
+      const action = location.state.action;
+      handleSidebarAction(action);
+      window.history.replaceState({}, document.title);
     }
   }, [location.state]);
 
@@ -300,14 +300,9 @@ return (
         user={user}
       />
 
-      <TelemetryHubModal
-        isOpen={isTelemetryModalOpen}
-        onClose={() => setIsTelemetryModalOpen(false)}
-      />
-
 
       {/* Sidebar - Ahora es oscura y flotante */}
-      <Sidebar user={user} onAction={handleSidebarAction} />
+      <Sidebar user={user} onAction={handleSidebarAction} activeModal={activeModal} />
 
       {/* Main Content */}
       <div className="flex-1 md:ml-[290px] relative z-10">
@@ -689,8 +684,24 @@ return (
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* Modal de Vehículos */}
+        <VehiclesModal 
+          isOpen={isVehiclesModalOpen} 
+          onClose={() => setIsVehiclesModalOpen(false)} 
+          user={user}
+          userId={user?.id} 
+        />
+
+        {/* Modal de Documentos */}
+        <DocumentsModal 
+          isOpen={isDocumentsModalOpen} 
+          onClose={() => setIsDocumentsModalOpen(false)} 
+          user={user}
+          userId={user?.id} 
+        />
         
-        {!isAnyModalOpen && <MobileNav onAction={handleSidebarAction} />}
+        <MobileNav onAction={handleSidebarAction} activeModal={activeModal} />
     </div>
   );
 }
