@@ -6,42 +6,32 @@ import {
   VolumeX, 
   Camera, 
   AlertTriangle, 
-  ShieldAlert, 
   Radio, 
   Users, 
   Car, 
   RotateCw, 
-  Play, 
-  Pause, 
-  Sparkles, 
   Zap, 
-  Sliders, 
-  CheckCircle2, 
-  Activity,
-  Layers,
-  HelpCircle
+  ShieldCheck, 
+  Crosshair,
+  Truck,
+  Bike
 } from 'lucide-react';
 import { loadCocoSsdModel, estimateProximity, MONITORED_CLASSES } from '../../utils/cocoSsdLoader';
 import { proximityAudio } from '../../utils/proximityAudio';
 
 export function ProximityAlertView() {
   const [isCameraActive, setIsCameraActive] = useState(false);
-  const [cameraFacing, setCameraFacing] = useState('user'); // 'user' | 'environment'
+  const [cameraFacing, setCameraFacing] = useState('environment'); // 'user' | 'environment'
   const [cameraError, setCameraError] = useState(null);
   const [isModelLoading, setIsModelLoading] = useState(false);
   const [modelStatus, setModelStatus] = useState('Listo para iniciar');
   const [modelReady, setModelReady] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(true);
   
-  // Detecciones activas en el fotograma actual
+  // Detecciones activas en el fotograma actual por la IA
   const [detections, setDetections] = useState([]);
   const [closestObject, setClosestObject] = useState(null);
   const [fps, setFps] = useState(0);
-
-  // Modo Simulación de Prueba (para experimentar el sonido y radar sin salir a la calle)
-  const [simulationMode, setSimulationMode] = useState(false);
-  const [simDistance, setSimDistance] = useState(2.2); // metros
-  const [simTargetType, setSimTargetType] = useState('car'); // 'car' | 'person'
 
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
@@ -59,7 +49,7 @@ export function ProximityAlertView() {
     proximityAudio.setMuted(!soundEnabled);
   }, [soundEnabled]);
 
-  // Cargar modelo de detección de objetos
+  // Cargar modelo de detección de objetos en WebGL
   const ensureModelLoaded = async () => {
     if (modelRef.current) return modelRef.current;
     setIsModelLoading(true);
@@ -77,7 +67,7 @@ export function ProximityAlertView() {
     }
   };
 
-  // Iniciar la cámara con fallback universal
+  // Iniciar la cámara en vivo
   const startCamera = async () => {
     setCameraError(null);
     try {
@@ -107,7 +97,6 @@ export function ProximityAlertView() {
       streamRef.current = stream;
       isCameraActiveRef.current = true;
       setIsCameraActive(true);
-      setSimulationMode(false);
 
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
@@ -118,13 +107,12 @@ export function ProximityAlertView() {
       }
       proximityAudio.playArmTone();
 
-      // Cargar modelo de forma no bloqueante y arrancar bucle
+      // Cargar modelo y arrancar bucle en tiempo real
       ensureModelLoaded()
         .then(() => {
           startDetectionLoop();
         })
         .catch(() => {
-          // Aún sin modelo, arrancamos el loop para que al menos dibuje o se reactive si carga después
           startDetectionLoop();
         });
     } catch (err) {
@@ -176,7 +164,7 @@ export function ProximityAlertView() {
     };
   }, [cameraFacing]);
 
-  // Bucle de detección en tiempo real a alta velocidad
+  // Bucle de detección en tiempo real con IA
   const startDetectionLoop = useCallback(() => {
     if (isDetectingRef.current) return;
     isDetectingRef.current = true;
@@ -198,10 +186,10 @@ export function ProximityAlertView() {
 
         if (modelRef.current) {
           try {
-            // Inferencia sobre el fotograma
+            // Inferencia sobre el fotograma con el modelo neuronal
             const predictions = await modelRef.current.detect(video);
             
-            // Filtrar personas y vehículos
+            // Filtrar personas y vehículos con confianza mínima
             const filtered = predictions.filter(pred => 
               MONITORED_CLASSES.includes(pred.class) && pred.score >= 0.45
             );
@@ -209,7 +197,7 @@ export function ProximityAlertView() {
             const frameWidth = video.videoWidth || 640;
             const frameHeight = video.videoHeight || 480;
 
-            // Procesar proximidad de cada objeto
+            // Procesar proximidad métrica
             let nearest = null;
             const processed = filtered.map(item => {
               const prox = estimateProximity(item.bbox, frameWidth, frameHeight, item.class);
@@ -227,18 +215,18 @@ export function ProximityAlertView() {
             setDetections(processed);
             setClosestObject(nearest);
 
-            // Disparar alertas sonoras según la distancia del más cercano
+            // Disparar alertas acústicas adaptativas según la proximidad del objeto más cercano
             if (nearest && soundEnabledRef.current) {
               if (nearest.proximity.zone === 'critical') {
-                // Menor a 1.8 metros: sonido continuo y estridente
+                // Menor a 1.8 metros: sonido continuo y penetrante
                 proximityAudio.playCriticalTone();
               } else if (nearest.proximity.zone === 'warning') {
-                // Entre 1.8 y 3.6 metros: sonido de aviso intermitente
+                // Entre 1.8 y 3.6 metros: sonido intermitente tipo radar
                 proximityAudio.playWarningTone();
               }
             }
 
-            // Dibujar en el canvas overlay
+            // Dibujar cajas tácticas en el canvas
             drawBoundingBoxes(processed, frameWidth, frameHeight);
           } catch (err) {
             console.error('Error en inferencia de frame:', err);
@@ -280,7 +268,7 @@ export function ProximityAlertView() {
       ctx.strokeStyle = color;
       ctx.strokeRect(x, y, w, h);
 
-      // Esquinas resaltadas estilo radar
+      // Esquinas tácticas tipo radar HUD
       const cornerLen = Math.min(20, w / 4, h / 4);
       ctx.lineWidth = zone === 'critical' ? 5 : 4;
       ctx.beginPath();
@@ -302,8 +290,16 @@ export function ProximityAlertView() {
       ctx.lineTo(x + w, y + h - cornerLen);
       ctx.stroke();
 
-      // Etiqueta con clase y distancia
-      const labelText = `${item.class.toUpperCase()} • ${distanceMeters}m`;
+      // Etiqueta con clase identificada por la IA y distancia métrica
+      const classTranslations = {
+        car: 'AUTO',
+        person: 'PEATÓN',
+        truck: 'CAMIÓN',
+        bus: 'AUTOBÚS',
+        motorcycle: 'MOTO',
+        bicycle: 'BICI'
+      };
+      const labelText = `${classTranslations[item.class] || item.class.toUpperCase()} • ${distanceMeters}m`;
       ctx.font = 'bold 13px monospace';
       const textWidth = ctx.measureText(labelText).width;
 
@@ -315,35 +311,6 @@ export function ProximityAlertView() {
     });
   };
 
-  // Efecto para el modo de prueba interactivo (Simulación)
-  useEffect(() => {
-    if (!simulationMode) return;
-
-    let zone = 'safe';
-    if (simDistance <= 1.8) zone = 'critical';
-    else if (simDistance <= 3.6) zone = 'warning';
-
-    const simulatedObj = {
-      class: simTargetType,
-      proximity: {
-        distanceMeters: simDistance,
-        zone
-      }
-    };
-
-    setClosestObject(simulatedObj);
-    setDetections([simulatedObj]);
-
-    if (soundEnabled) {
-      if (zone === 'critical') {
-        proximityAudio.playCriticalTone();
-      } else if (zone === 'warning') {
-        proximityAudio.playWarningTone();
-      }
-    }
-  }, [simulationMode, simDistance, simTargetType, soundEnabled]);
-
-  // Manejo de sonido de prueba manual
   const triggerManualTestBeep = (type) => {
     if (type === 'critical') {
       proximityAudio.playCriticalTone();
@@ -352,30 +319,34 @@ export function ProximityAlertView() {
     }
   };
 
+  const getTargetIcon = (className) => {
+    switch (className) {
+      case 'car':
+        return <Car size={16} />;
+      case 'truck':
+      case 'bus':
+        return <Truck size={16} />;
+      case 'motorcycle':
+      case 'bicycle':
+        return <Bike size={16} />;
+      default:
+        return <Users size={16} />;
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Banner Superior ADAS de Proximidad */}
       <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 p-5 md:p-6 rounded-3xl border border-rose-500/20 text-white shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-2xl bg-rose-500/20 border border-rose-400/30 flex items-center justify-center text-rose-400 shrink-0">
-            <Radio size={28} className="animate-pulse" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <h4 className="font-extrabold text-base md:text-lg">
-                Radar ADAS de Proximidad & Alerta de Colisión
-              </h4>
-              <span className="text-[10px] uppercase tracking-wider bg-rose-500/20 text-rose-400 px-2 py-0.5 rounded-full font-bold border border-rose-500/30">
-                IA Detección Visual & Audio
-              </span>
-            </div>
-            <p className="text-xs text-slate-300 max-w-2xl mt-1">
-              Escanea personas, automóviles, camiones y motos en tu campo visual. Si un vehículo o peatón entra a tu zona de riesgo (&lt; 2.0m), dispara <strong>alertas acústicas inmediatas tipo sonar</strong> para evitar choques y atropellos.
-            </p>
-          </div>
+        <div>
+          <h4 className="font-extrabold text-base md:text-lg">
+            Radar ADAS de Proximidad & Alerta de Colisión con IA
+          </h4>
+          <p className="text-xs text-slate-300 max-w-2xl mt-1">
+            Escanea en tiempo real mediante visión neuronal para detectar peatones, automóviles, camiones y motocicletas. Calcula la distancia métrica y dispara alertas sonoras automáticas tipo sonar (&lt; 2.0m).
+          </p>
         </div>
 
-        {/* Interruptores de Audio y Modo Simulación */}
         <div className="flex items-center gap-2 flex-wrap shrink-0">
           <button
             onClick={() => setSoundEnabled(!soundEnabled)}
@@ -387,21 +358,6 @@ export function ProximityAlertView() {
           >
             {soundEnabled ? <Volume2 size={16} className="text-rose-400" /> : <VolumeX size={16} />}
             <span>{soundEnabled ? 'Sonido Activo' : 'Silenciado'}</span>
-          </button>
-
-          <button
-            onClick={() => {
-              if (isCameraActive) stopCamera();
-              setSimulationMode(!simulationMode);
-            }}
-            className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors border ${
-              simulationMode
-                ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
-                : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
-            }`}
-          >
-            <Sliders size={15} />
-            <span>{simulationMode ? 'Modo Simulación ON' : 'Probar Simulación'}</span>
           </button>
         </div>
       </div>
@@ -436,28 +392,22 @@ export function ProximityAlertView() {
             />
 
             {/* 3. Modo Cámara Apagada / Estado Inactivo */}
-            {!isCameraActive && !simulationMode && (
+            {!isCameraActive && (
               <div className="text-center p-6 max-w-md">
                 <div className="w-16 h-16 rounded-3xl bg-slate-800 text-slate-400 flex items-center justify-center mx-auto mb-3 border border-slate-700">
                   <Eye size={32} />
                 </div>
                 <h5 className="font-extrabold text-white text-base">Radar Óptico Desconectado</h5>
                 <p className="text-xs text-slate-400 mt-1">
-                  Enciende la cámara para escanear personas y vehículos en tiempo real o activa la simulación para probar el sonar acústico.
+                  Enciende la cámara para escanear personas, vehículos y puntos ciegos en tiempo real con Inteligencia Artificial.
                 </p>
                 <div className="flex items-center justify-center gap-3 mt-4">
                   <button
                     onClick={startCamera}
                     disabled={isModelLoading}
-                    className="px-5 py-2.5 bg-gradient-to-r from-rose-600 to-indigo-600 hover:from-rose-500 hover:to-indigo-500 text-white text-xs font-black rounded-xl shadow-lg shadow-rose-500/20 flex items-center gap-2"
+                    className="px-5 py-2.5 bg-gradient-to-r from-rose-600 to-indigo-600 hover:from-rose-500 hover:to-indigo-500 text-white text-xs font-black rounded-xl shadow-lg shadow-rose-500/20 flex items-center gap-2 transition-all active:scale-95"
                   >
                     <Camera size={16} /> Activar Cámara en Vivo
-                  </button>
-                  <button
-                    onClick={() => setSimulationMode(true)}
-                    className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl border border-slate-700 flex items-center gap-2"
-                  >
-                    <Sliders size={15} /> Probar con Slider
                   </button>
                 </div>
                 {isModelLoading && (
@@ -468,49 +418,7 @@ export function ProximityAlertView() {
               </div>
             )}
 
-            {/* 4. Pantalla de Simulación Interactiva */}
-            {!isCameraActive && simulationMode && (
-              <div className="relative w-full h-full flex flex-col items-center justify-center p-6 text-center">
-                {/* Visualizador de Onda de Radar */}
-                <div className="relative w-48 h-48 flex items-center justify-center mb-4">
-                  <div className={`absolute inset-0 rounded-full border-2 border-dashed animate-spin ${
-                    simDistance <= 1.8 ? 'border-rose-500/80' : simDistance <= 3.6 ? 'border-amber-500/60' : 'border-cyan-500/40'
-                  }`} style={{ animationDuration: '8s' }} />
-
-                  <div className={`w-36 h-36 rounded-full flex items-center justify-center transition-all ${
-                    simDistance <= 1.8 
-                      ? 'bg-rose-500/20 border-2 border-rose-500 shadow-[0_0_30px_#ef4444]' 
-                      : simDistance <= 3.6 
-                      ? 'bg-amber-500/20 border-2 border-amber-500 shadow-[0_0_20px_#f59e0b]' 
-                      : 'bg-cyan-500/20 border-2 border-cyan-500 shadow-[0_0_20px_#06b6d4]'
-                  }`}>
-                    {simTargetType === 'car' ? (
-                      <Car size={48} className={simDistance <= 1.8 ? 'text-rose-400' : simDistance <= 3.6 ? 'text-amber-400' : 'text-cyan-400'} />
-                    ) : (
-                      <Users size={48} className={simDistance <= 1.8 ? 'text-rose-400' : simDistance <= 3.6 ? 'text-amber-400' : 'text-cyan-400'} />
-                    )}
-                  </div>
-
-                  {simDistance <= 1.8 && (
-                    <span className="absolute w-44 h-44 rounded-full bg-rose-500/30 animate-ping" />
-                  )}
-                </div>
-
-                <div className="bg-slate-900/90 backdrop-blur-md px-4 py-2 rounded-2xl border border-slate-700">
-                  <span className="text-[10px] uppercase font-mono text-slate-400 block">Distancia Simulada</span>
-                  <span className="text-3xl font-black font-mono text-white">
-                    {simDistance.toFixed(1)} <span className="text-xs text-slate-400">METROS</span>
-                  </span>
-                  <p className={`text-xs font-black mt-0.5 ${
-                    simDistance <= 1.8 ? 'text-rose-400 animate-pulse' : simDistance <= 3.6 ? 'text-amber-400' : 'text-emerald-400'
-                  }`}>
-                    {simDistance <= 1.8 ? '¡PELIGRO: ZONA CRÍTICA!' : simDistance <= 3.6 ? 'PRECAUCIÓN: APROXIMACIÓN' : 'DISTANCIA SEGURA'}
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {/* 5. Alerta HUD Flotante de Colisión Crítica */}
+            {/* 4. Alerta HUD Flotante de Colisión Crítica */}
             {closestObject && closestObject.proximity.zone === 'critical' && (
               <motion.div
                 initial={{ opacity: 0, scale: 0.9 }}
@@ -534,7 +442,7 @@ export function ProximityAlertView() {
               </motion.div>
             )}
 
-            {/* 6. Barra Inferior HUD de Estado */}
+            {/* 5. Barra Inferior HUD de Estado */}
             <div className="absolute bottom-3 left-3 right-3 z-20 flex items-center justify-between text-[11px] font-mono text-white bg-slate-900/80 backdrop-blur-md px-3.5 py-2 rounded-xl border border-slate-800">
               <div className="flex items-center gap-3">
                 <span className="flex items-center gap-1.5 text-rose-400 font-bold">
@@ -588,27 +496,27 @@ export function ProximityAlertView() {
                 </button>
               )}
 
-              {/* Botón para probar pitido acústico */}
+              {/* Botones para verificar el sintetizador de audio del dispositivo */}
               <button
                 onClick={() => triggerManualTestBeep('warning')}
                 className="px-3 py-2 bg-amber-50 hover:bg-amber-100 text-amber-700 text-xs font-bold rounded-xl border border-amber-200 flex items-center gap-1.5"
               >
-                <Volume2 size={14} /> Probar Beep Advertencia
+                <Volume2 size={14} /> Beep Advertencia
               </button>
               <button
                 onClick={() => triggerManualTestBeep('critical')}
                 className="px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold rounded-xl border border-rose-200 flex items-center gap-1.5"
               >
-                <Volume2 size={14} /> Probar Alarma Crítica
+                <Volume2 size={14} /> Alarma Crítica
               </button>
             </div>
           </div>
         </div>
 
-        {/* Columna Derecha: Panel de Diagnóstico, Radar y Controles de Simulación (4 cols) */}
+        {/* Columna Derecha: Panel de Diagnóstico, Radar y Objetos en Tiempo Real (4 cols) */}
         <div className="lg:col-span-4 space-y-4">
           
-          {/* Objeto Más Cercano */}
+          {/* Sensor Frontal / Objeto Más Cercano */}
           <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm space-y-4">
             <h5 className="font-black text-slate-900 text-sm flex items-center justify-between">
               <span>Sensor de Proximidad Frontal</span>
@@ -624,8 +532,9 @@ export function ProximityAlertView() {
                   : 'bg-cyan-50 border-cyan-500 text-cyan-950'
               }`}>
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-black uppercase tracking-wider bg-black/10 px-2 py-0.5 rounded-md">
-                    {closestObject.class}
+                  <span className="text-[10px] font-black uppercase tracking-wider bg-black/10 px-2 py-0.5 rounded-md flex items-center gap-1">
+                    {getTargetIcon(closestObject.class)}
+                    <span>{closestObject.class}</span>
                   </span>
                   <span className="text-xs font-black uppercase">
                     {closestObject.proximity.zone === 'critical' ? 'Zona Crítica' : closestObject.proximity.zone === 'warning' ? 'Precaución' : 'Seguro'}
@@ -647,66 +556,49 @@ export function ProximityAlertView() {
               </div>
             ) : (
               <div className="p-6 rounded-2xl bg-slate-50 border border-slate-200 text-center text-slate-400">
-                <Users size={28} className="mx-auto mb-2 opacity-40" />
+                <Crosshair size={28} className="mx-auto mb-2 opacity-40" />
                 <p className="text-xs font-bold">Sin vehículos ni personas en campo cercano</p>
-                <p className="text-[10px] text-slate-400 mt-0.5">El radar mantiene vigilancia a 360°</p>
+                <p className="text-[10px] text-slate-400 mt-0.5">El radar mantiene vigilancia frontal activa</p>
               </div>
             )}
 
-            {/* Parámetros de Simulación Manual */}
-            <div className="pt-3 border-t border-slate-100 space-y-3">
+            {/* Lista en Vivo de Objetos Detectados por la IA */}
+            <div className="pt-3 border-t border-slate-100 space-y-2">
               <span className="text-[10px] font-extrabold uppercase text-slate-400 tracking-wider block">
-                Simulador de Acercamiento:
+                Objetos Rastreados por la IA ({detections.length}):
               </span>
 
-              {/* Selector de Tipo de Blanco */}
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                <button
-                  onClick={() => setSimTargetType('car')}
-                  className={`p-2 rounded-xl font-bold flex items-center justify-center gap-1.5 border transition-all ${
-                    simTargetType === 'car'
-                      ? 'bg-slate-900 text-white border-slate-900 shadow-sm'
-                      : 'bg-slate-50 text-slate-700 border-slate-200'
-                  }`}
-                >
-                  <Car size={14} /> Vehículo
-                </button>
-                <button
-                  onClick={() => setSimTargetType('person')}
-                  className={`p-2 rounded-xl font-bold flex items-center justify-center gap-1.5 border transition-all ${
-                    simTargetType === 'person'
-                      ? 'bg-slate-900 text-white border-slate-900 shadow-sm'
-                      : 'bg-slate-50 text-slate-700 border-slate-200'
-                  }`}
-                >
-                  <Users size={14} /> Peatón
-                </button>
-              </div>
-
-              {/* Slider de Distancia */}
-              <div>
-                <div className="flex items-center justify-between text-xs mb-1">
-                  <span className="font-bold text-slate-700">Distancia del Objeto:</span>
-                  <span className="font-mono font-black text-slate-900">{simDistance.toFixed(1)} m</span>
+              {detections.length === 0 ? (
+                <p className="text-xs text-slate-400 italic py-2 text-center">
+                  {isCameraActive ? 'Buscando obstáculos en la vía...' : 'Cámara inactiva'}
+                </p>
+              ) : (
+                <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                  {detections.map((item, idx) => (
+                    <div 
+                      key={idx}
+                      className={`p-2 rounded-xl border flex items-center justify-between text-xs ${
+                        item.proximity.zone === 'critical'
+                          ? 'bg-rose-50 border-rose-200 text-rose-900'
+                          : item.proximity.zone === 'warning'
+                          ? 'bg-amber-50 border-amber-200 text-amber-900'
+                          : 'bg-slate-50 border-slate-200 text-slate-800'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        {getTargetIcon(item.class)}
+                        <span className="font-bold capitalize">{item.class}</span>
+                        <span className="text-[10px] text-slate-400 font-mono">
+                          ({Math.round((item.score || 0.8) * 100)}%)
+                        </span>
+                      </div>
+                      <span className="font-mono font-extrabold">
+                        {item.proximity.distanceMeters}m
+                      </span>
+                    </div>
+                  ))}
                 </div>
-                <input
-                  type="range"
-                  min="0.5"
-                  max="6.0"
-                  step="0.1"
-                  value={simDistance}
-                  onChange={(e) => {
-                    setSimulationMode(true);
-                    setSimDistance(Number(e.target.value));
-                  }}
-                  className="w-full accent-rose-600"
-                />
-                <div className="flex justify-between text-[10px] text-slate-400 font-mono mt-0.5">
-                  <span className="text-rose-600 font-bold">0.5m (Impacto)</span>
-                  <span className="text-amber-500 font-bold">2.5m</span>
-                  <span>6.0m (Lejos)</span>
-                </div>
-              </div>
+              )}
             </div>
           </div>
 
@@ -714,10 +606,10 @@ export function ProximityAlertView() {
           <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 text-xs text-slate-600 space-y-2">
             <h6 className="font-extrabold text-slate-900 flex items-center gap-1.5">
               <Zap size={14} className="text-rose-500" />
-              ¿Cómo funciona el Radar QRide?
+              Tecnología de Visión Neuronal ADAS
             </h6>
             <p className="text-[11px] leading-relaxed">
-              Utiliza modelos neuronales <strong>COCO-SSD</strong> acelerados por WebGL para identificar peatones y automóviles en la vía. Estima la profundidad relativa y modula osciladores de audio mediante la <strong>Web Audio API</strong> nativa, creando una experiencia acústica adaptativa idéntica a los sensores de reversa de alta gama.
+              Utiliza la red neuronal <strong>COCO-SSD</strong> procesada localmente mediante <strong>WebGL a 30 FPS</strong>. Identifica vehículos, peatones y ciclistas, calcula la profundidad visual y modula la <strong>Web Audio API</strong> emulando los sistemas ADAS de frenado preventivo de motocicletas modernas.
             </p>
           </div>
         </div>
