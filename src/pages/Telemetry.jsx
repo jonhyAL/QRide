@@ -32,7 +32,18 @@ export default function Telemetry() {
   });
   const [isVehiclesModalOpen, setIsVehiclesModalOpen] = useState(false);
   const [isDocumentsModalOpen, setIsDocumentsModalOpen] = useState(false);
+  const [isGpsTracking, setIsGpsTracking] = useState(false);
+  const [isHelmetCameraActive, setIsHelmetCameraActive] = useState(false);
   const activeModal = isVehiclesModalOpen ? 'vehicles' : isDocumentsModalOpen ? 'documents' : null;
+
+  // Ocultar barras de navegación (MobileNav y Sidebar) cuando se activa el GPS o la cámara del casco en pantalla completa
+  const shouldHideNav = isGpsTracking || isHelmetCameraActive;
+
+  useEffect(() => {
+    if (activeTab !== 'helmet') {
+      setIsHelmetCameraActive(false);
+    }
+  }, [activeTab]);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
@@ -66,13 +77,15 @@ export default function Telemetry() {
   ];
 
   return (
-    <div className="min-h-screen bg-bg-light relative overflow-x-hidden font-sans pb-24 md:pb-10">
+    <div className={`min-h-screen bg-bg-light relative overflow-x-hidden font-sans ${shouldHideNav ? 'p-0 m-0 overflow-hidden' : 'pb-24 md:pb-10'}`}>
       
-      {/* Sidebar Flotante de QRide */}
-      <Sidebar user={user} onAction={handleSidebarAction} activeModal={activeModal} />
+      {/* Sidebar Flotante de QRide - Se oculta automáticamente durante el viaje activo o cámara activa */}
+      {!shouldHideNav && (
+        <Sidebar user={user} onAction={handleSidebarAction} activeModal={activeModal} />
+      )}
 
       {/* Contenido Principal de la Página */}
-      <div className="flex-1 md:ml-[290px] relative z-10">
+      <div className={`flex-1 transition-all ${shouldHideNav ? 'm-0 p-0' : 'md:ml-[290px]'} relative z-10`}>
         <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-6">
           
           {/* Header de la Página */}
@@ -86,10 +99,6 @@ export default function Telemetry() {
                 <h1 className="text-2xl md:text-3xl font-black text-secondary tracking-tight">
                   Centro de Telemetría Satelital & Hardware
                 </h1>
-                <span className="px-3 py-1 bg-primary/10 text-primary text-xs font-black uppercase rounded-full border border-primary/20 flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-                  En Tiempo Real
-                </span>
               </div>
               <p className="text-xs md:text-sm text-slate-500 font-medium mt-1">
                 Monitoreo vehicular en mapa satelital en vivo, geocercas activas, inspección de casco con IA y radar ADAS
@@ -150,13 +159,13 @@ export default function Telemetry() {
           {/* Área de Visualización Dinámica */}
           <div className="transition-all">
             {activeTab === 'gps' && (
-              <LiveGpsTracker isModal={false} />
+              <LiveGpsTracker isModal={false} onTrackingChange={setIsGpsTracking} />
             )}
             {activeTab === 'geofence' && (
               <GeofencingView />
             )}
             {activeTab === 'helmet' && (
-              <HelmetSafetyCheckView />
+              <HelmetSafetyCheckView onCameraActiveChange={setIsHelmetCameraActive} />
             )}
             {activeTab === 'proximity' && (
               <ProximityAlertView />
@@ -166,8 +175,10 @@ export default function Telemetry() {
         </div>
       </div>
 
-      {/* Navegación Móvil Inferior */}
-      <MobileNav onAction={handleSidebarAction} activeModal={activeModal} />
+      {/* Navegación Móvil Inferior - Se oculta automáticamente durante el viaje activo o cámara activa */}
+      {!shouldHideNav && (
+        <MobileNav onAction={handleSidebarAction} activeModal={activeModal} />
+      )}
 
       {/* Modal de Vehículos */}
       <VehiclesModal 

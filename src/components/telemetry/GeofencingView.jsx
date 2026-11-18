@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  ShieldCheck, 
   MapPin, 
   Plus, 
   Clock, 
@@ -253,30 +252,115 @@ export function GeofencingView() {
     drawGeofencesAndVehicle(mapInstanceRef.current, layersGroupRef.current, geofences, selectedGeo, userLocation);
   }, [geofences, selectedGeo, userLocation]);
 
-  // 7. Función de dibujo y renderizado en Leaflet
+  // 7. Cálculo matemático real de pertenencia (Dentro / Fuera) y distancias
+  const getGeofenceStatus = (geo, userPos) => {
+    if (!userPos) {
+      return { isInside: false, isOutside: false, label: 'Calculando...', distanceText: 'Esperando GPS', distanceMeters: 0, distanceToBoundary: 0 };
+    }
+
+    if (geo.type === 'circle') {
+      const distMeters = Math.round(calculateDistanceKm(userPos.lat, userPos.lng, geo.lat, geo.lng) * 1000);
+      const isInside = distMeters <= geo.radius;
+      const distanceToBoundary = Math.abs(distMeters - geo.radius);
+
+      return {
+        isInside,
+        isOutside: !isInside,
+        label: isInside ? 'DENTRO (Seguro)' : 'FUERA DE ZONA',
+        distanceMeters: distMeters,
+        distanceToBoundary,
+        distanceText: isInside 
+          ? `A ${distMeters}m del centro (${distanceToBoundary}m al límite)` 
+          : `A ${distanceToBoundary}m fuera del límite`
+      };
+    } else if (geo.type === 'polygon' && geo.points) {
+      const inside = isPointInPolygon([userPos.lat, userPos.lng], geo.points);
+      return {
+        isInside: inside,
+        isOutside: !inside,
+        label: inside ? 'DENTRO (Seguro)' : 'FUERA DE ZONA',
+        distanceMeters: 0,
+        distanceToBoundary: 0,
+        distanceText: inside ? 'Dentro del polígono seguro' : 'Fuera del polígono configurado'
+      };
+    }
+
+    return { isInside: false, isOutside: false, label: 'N/A', distanceText: 'N/A', distanceMeters: 0, distanceToBoundary: 0 };
+  };
+
+  // 8. Comprobación Multi-Zona Segura Profesional
+  // El vehículo está SEGURO si está dentro de CUALQUIER zona activa.
+  // Solo se considera violación de perímetro (Breach) si existen zonas activas Y el vehículo está fuera de TODAS ellas.
+  const activeSafeZones = geofences.filter(geo => geo.status === 'active');
+  const safeZonesWithVehicle = activeSafeZones.filter(geo => getGeofenceStatus(geo, userLocation).isInside);
+  const isVehicleInAnySafeZone = safeZonesWithVehicle.length > 0;
+  const isGlobalBreach = Boolean(userLocation && activeSafeZones.length > 0 && !isVehicleInAnySafeZone);
+
+  // Zona más cercana al vehículo cuando está fuera de todos los perímetros
+  const closestZone = isGlobalBreach ? activeSafeZones.reduce((prev, curr) => {
+    const prevDist = getGeofenceStatus(prev, userLocation).distanceMeters || 999999;
+    const currDist = getGeofenceStatus(curr, userLocation).distanceMeters || 999999;
+    return currDist < prevDist ? curr : prev;
+  }, activeSafeZones[0]) : null;
+
+  // Emitir alerta acústica SOLO cuando el vehículo sale de TODAS las zonas seguras autorizadas
+  useEffect(() => {
+    if (isGlobalBreach && Date.now() - lastAlertTimeRef.current > 30000) {
+      proximityAudio.playBeep(520, 0.25, 'triangle', 0.25);
+      lastAlertTimeRef.current = Date.now();
+    }
+  }, [isGlobalBreach]);
+
+  // 9. Función de dibujo y renderizado en Leaflet
   const drawGeofencesAndVehicle = (map, group, list, activeGeo, userPos) => {
     if (!window.L || !group) return;
     const L = window.L;
     group.clearLayers();
 
+    // Evaluar multi-zona segura para colorear adecuadamente
+    const currentActiveZones = list.filter(g => g.status === 'active');
+    const insideAnyZone = currentActiveZones.some(g => getGeofenceStatus(g, userPos).isInside);
+    const hasBreach = Boolean(userPos && currentActiveZones.length > 0 && !insideAnyZone);
+
     // Dibujar cada geocerca
     list.forEach((geo) => {
       const isSelected = activeGeo?.id === geo.id;
       const statusInfo = getGeofenceStatus(geo, userPos);
-      const isBreached = statusInfo.isOutside && geo.status === 'active';
-      const color = isBreached ? '#E63946' : (geo.status === 'active' ? '#3D8B6D' : '#64748b');
+      const isInsideThis = statusInfo.isInside;
+
+      // Determinación profesional del color:
+      // - Si está pausada: gris slate
+      // - Si el vehículo está fuera de TODAS las zonas seguras: rojo de alerta perimetral (#E63946)
+      // - Si el vehículo está dentro de ESTA zona: verde esmeralda brillante (#3D8B6D)
+      // - Si el vehículo está dentro de OTRA zona segura: verde azulado calmado (#2C7A58)
+      let color = '#64748b';
+      if (geo.status === 'active') {
+        if (hasBreach) {
+          color = '#E63946';
+        } else if (isInsideThis) {
+          color = '#3D8B6D';
+        } else {
+          color = '#2C7A58';
+        }
+      }
+
+      const tooltipText = isInsideThis
+        ? `<b>${geo.name}</b><br/>🟢 Vehículo presente aquí`
+        : (hasBreach 
+            ? `<b>${geo.name}</b><br/>⚠️ Fuera de zona segura (${statusInfo.distanceText})`
+            : `<b>${geo.name}</b><br/>🛡️ Zona autorizada (${statusInfo.distanceText})`);
 
       if (geo.type === 'circle') {
         const circle = L.circle([geo.lat, geo.lng], {
           radius: geo.radius,
           color: color,
           fillColor: color,
-          fillOpacity: isSelected ? 0.35 : 0.18,
-          weight: isSelected ? 3.5 : 2,
+          fillOpacity: isSelected ? 0.35 : (isInsideThis ? 0.25 : 0.14),
+          weight: isSelected ? 3.5 : (isInsideThis ? 2.5 : 1.8),
           dashArray: geo.status === 'paused' ? '6, 6' : null
         });
 
-        circle.bindTooltip(`<b>${geo.name}</b><br/>Radio: ${geo.radius}m<br/>Estado: ${statusInfo.label}`, {
+        circle.bindTooltip(tooltipText, {
           permanent: isSelected,
           direction: 'top',
           className: 'geofence-tooltip'
@@ -292,7 +376,7 @@ export function GeofencingView() {
           fill: false,
           weight: 1,
           dashArray: '3, 5',
-          opacity: 0.4
+          opacity: 0.35
         });
         group.addLayer(hysteresisCircle);
 
@@ -300,12 +384,12 @@ export function GeofencingView() {
         const polygon = L.polygon(geo.points, {
           color: color,
           fillColor: color,
-          fillOpacity: isSelected ? 0.35 : 0.18,
-          weight: isSelected ? 3.5 : 2,
+          fillOpacity: isSelected ? 0.35 : (isInsideThis ? 0.25 : 0.14),
+          weight: isSelected ? 3.5 : (isInsideThis ? 2.5 : 1.8),
           dashArray: geo.status === 'paused' ? '6, 6' : null
         });
 
-        polygon.bindTooltip(`<b>${geo.name}</b><br/>Polígono Seguro<br/>Estado: ${statusInfo.label}`, {
+        polygon.bindTooltip(tooltipText, {
           permanent: isSelected,
           direction: 'top',
           className: 'geofence-tooltip'
@@ -339,52 +423,6 @@ export function GeofencingView() {
       userMarkerRef.current = vehicleMarker;
     }
   };
-
-  // 8. Cálculo matemático real de pertenencia (Dentro / Fuera) y distancias
-  const getGeofenceStatus = (geo, userPos) => {
-    if (!userPos) {
-      return { isOutside: false, label: 'Calculando...', distanceText: 'Esperando GPS', distanceMeters: 0 };
-    }
-
-    if (geo.type === 'circle') {
-      const distMeters = Math.round(calculateDistanceKm(userPos.lat, userPos.lng, geo.lat, geo.lng) * 1000);
-      const isOutside = distMeters > geo.radius;
-
-      return {
-        isOutside,
-        label: isOutside ? 'FUERA DE ZONA' : 'DENTRO (Seguro)',
-        distanceMeters: distMeters,
-        distanceText: isOutside 
-          ? `A ${distMeters - geo.radius}m fuera del límite` 
-          : `A ${distMeters}m del centro (${geo.radius - distMeters}m al límite)`
-      };
-    } else if (geo.type === 'polygon' && geo.points) {
-      const inside = isPointInPolygon([userPos.lat, userPos.lng], geo.points);
-      return {
-        isOutside: !inside,
-        label: inside ? 'DENTRO (Seguro)' : 'FUERA DE ZONA',
-        distanceMeters: 0,
-        distanceText: inside ? 'Dentro del polígono seguro' : 'Fuera del polígono configurado'
-      };
-    }
-
-    return { isOutside: false, label: 'N/A', distanceText: 'N/A', distanceMeters: 0 };
-  };
-
-  // 9. Comprobar si hay alertas de salida activas
-  const activeBreaches = geofences.filter(geo => {
-    if (geo.status !== 'active') return false;
-    const st = getGeofenceStatus(geo, userLocation);
-    return st.isOutside && geo.events?.includes('EXIT');
-  });
-
-  // Emitir alerta acústica si hay una violación de geocerca
-  useEffect(() => {
-    if (activeBreaches.length > 0 && Date.now() - lastAlertTimeRef.current > 30000) {
-      proximityAudio.playBeep(520, 0.25, 'triangle', 0.25);
-      lastAlertTimeRef.current = Date.now();
-    }
-  }, [activeBreaches.length]);
 
   // 10. Crear nueva geocerca real
   const handleCreateGeofence = (e) => {
@@ -478,61 +516,67 @@ export function GeofencingView() {
   return (
     <div className="space-y-6">
       
-      {/* Alerta Destacada en Caso de Violación de Perímetro */}
+      {/* Alerta Destacada en Caso de Violación de Perímetro Multi-Zona */}
       <AnimatePresence>
-        {activeBreaches.length > 0 && (
+        {isGlobalBreach && (
           <motion.div 
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
-            className="p-4 bg-rose-50 border-2 border-rose-300 rounded-2xl flex items-center justify-between gap-4 text-rose-900 shadow-md"
+            className="p-4 bg-rose-50 border-2 border-rose-300 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-rose-900 shadow-md"
           >
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-rose-500 text-white rounded-xl shrink-0 animate-bounce">
-                <ShieldAlert size={20} />
+              <div className="p-2.5 bg-rose-500 text-white rounded-xl shrink-0 animate-bounce">
+                <ShieldAlert size={22} />
               </div>
               <div>
                 <h5 className="font-black text-sm">
                   ¡Alerta de Seguridad Satelital!
                 </h5>
                 <p className="text-xs font-semibold text-rose-800">
-                  Tu vehículo se encuentra <strong>fuera del perímetro</strong> de {activeBreaches.map(b => `"${b.name}"`).join(', ')}.
+                  Tu vehículo se encuentra <strong>fuera de todos los perímetros seguros autorizados</strong>
+                  {closestZone ? ` (a ${getGeofenceStatus(closestZone, userLocation).distanceText} de "${closestZone.name}")` : ''}.
                 </p>
               </div>
             </div>
             <button
               onClick={handleCenterUser}
-              className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold shrink-0 shadow-sm transition-all"
+              className="px-3.5 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold shrink-0 shadow-sm transition-all text-center"
             >
-              Ver Vehículo
+              Ubicar en Mapa
             </button>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Banner Principal de Geocercas Satelitales (Paleta Oficial QRide) */}
-      <div className="bg-gradient-to-br from-secondary via-[#382f60] to-secondary p-5 md:p-6 rounded-[2rem] border border-secondary/60 text-white shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-        <div className="flex items-center gap-3.5">
-          <div className="w-12 h-12 rounded-2xl bg-primary/20 border border-primary/40 flex items-center justify-center text-primary shrink-0">
-            <ShieldCheck size={26} className="text-accent" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <h4 className="font-extrabold text-base md:text-lg text-white">
-                Geocercas Satelitales en Tiempo Real
-              </h4>
-              <span className={`text-[10px] uppercase tracking-wider px-2.5 py-0.5 rounded-full font-bold border ${
-                gpsActive 
-                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' 
-                  : 'bg-amber-500/20 text-amber-300 border-amber-500/30'
-              }`}>
-                {gpsActive ? 'GPS Activo' : 'Buscando GPS'}
+      {/* Banner Principal de Geocercas Satelitales (Paleta Oficial QRide, Sin icono lateral) */}
+      <div className="bg-gradient-to-br from-secondary via-[#382f60] to-secondary p-4 sm:p-5 md:p-6 rounded-3xl md:rounded-[2rem] border border-secondary/60 text-white shadow-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h4 className="font-extrabold text-base md:text-lg text-white">
+              Geocercas Satelitales en Tiempo Real
+            </h4>
+            <span className={`text-[10px] uppercase tracking-wider px-2.5 py-0.5 rounded-full font-bold border ${
+              gpsActive 
+                ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' 
+                : 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+            }`}>
+              {gpsActive ? 'GPS Activo' : 'Buscando GPS'}
+            </span>
+            {isVehicleInAnySafeZone && (
+              <span className="text-[10px] uppercase tracking-wider px-2.5 py-0.5 rounded-full font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
+                <CheckCircle2 size={11} /> Seguro ({safeZonesWithVehicle[0]?.name})
               </span>
-            </div>
-            <p className="text-xs text-text-muted max-w-2xl mt-0.5">
-              Monitoreo continuo de entrada y salida con tu ubicación real. Las zonas se guardan en tu dispositivo y alertan automáticamente si el vehículo sale de su perímetro.
-            </p>
+            )}
+            {isGlobalBreach && (
+              <span className="text-[10px] uppercase tracking-wider px-2.5 py-0.5 rounded-full font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30 animate-pulse flex items-center gap-1">
+                <AlertTriangle size={11} /> Fuera de Zona
+              </span>
+            )}
           </div>
+          <p className="text-xs text-text-muted max-w-2xl">
+            Monitoreo continuo multizona con tu ubicación real. Puedes registrar múltiples zonas seguras (casa, trabajo, cochera) y el vehículo se considerará protegido al encontrarse en cualquiera de ellas.
+          </p>
         </div>
 
         {/* Botón Nueva Geocerca */}
@@ -543,7 +587,7 @@ export function GeofencingView() {
               setPickedLatLng({ lat: userLocation.lat, lng: userLocation.lng });
             }
           }}
-          className="px-5 py-3 bg-primary hover:bg-btn-hover text-white font-bold rounded-2xl text-xs flex items-center gap-2 shadow-lg shadow-primary/35 transition-all transform hover:scale-[1.02] active:scale-95 shrink-0 cursor-pointer"
+          className="w-full sm:w-auto justify-center px-5 py-3 bg-primary hover:bg-btn-hover text-white font-bold rounded-2xl text-xs flex items-center gap-2 shadow-lg shadow-primary/35 transition-all transform hover:scale-[1.02] active:scale-95 shrink-0 cursor-pointer"
         >
           <Plus size={17} /> 
           <span>Crear Geocerca</span>
@@ -554,7 +598,7 @@ export function GeofencingView() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
         {/* MAPA REAL LEAFLET */}
-        <div className="lg:col-span-2 bg-white/95 backdrop-blur-xl rounded-[2rem] border border-white/60 p-5 flex flex-col relative overflow-hidden shadow-xl min-h-[500px]">
+        <div className="lg:col-span-2 bg-white/95 backdrop-blur-xl rounded-[2rem] border border-white/60 p-4 sm:p-5 flex flex-col relative overflow-hidden shadow-xl min-h-[440px] sm:min-h-[500px]">
           
           {/* Header del Mapa y Selector de Capas */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3 z-10">
@@ -566,21 +610,21 @@ export function GeofencingView() {
             </div>
 
             {/* Selector de Capas */}
-            <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl self-start sm:self-auto text-xs border border-slate-200/60">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-2 flex items-center gap-1">
-                <Layers size={12} /> Capa:
+            <div className="flex flex-wrap items-center gap-1 bg-slate-100 p-1 rounded-xl self-start sm:self-auto text-xs border border-slate-200/60">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-1.5 flex items-center gap-1">
+                <Layers size={11} /> Capa:
               </span>
               <button
                 onClick={() => setMapProvider('googleRoads')}
-                className={`px-2.5 py-1 rounded-lg font-bold transition-all ${
+                className={`text-[11px] px-2.5 py-1 rounded-lg font-bold transition-all ${
                   mapProvider === 'googleRoads' ? 'bg-white text-secondary shadow-xs' : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
-                Google Calles
+                Calles
               </button>
               <button
                 onClick={() => setMapProvider('googleSatellite')}
-                className={`px-2.5 py-1 rounded-lg font-bold transition-all ${
+                className={`text-[11px] px-2.5 py-1 rounded-lg font-bold transition-all ${
                   mapProvider === 'googleSatellite' ? 'bg-white text-secondary shadow-xs' : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
@@ -588,56 +632,56 @@ export function GeofencingView() {
               </button>
               <button
                 onClick={() => setMapProvider('cartoDark')}
-                className={`px-2.5 py-1 rounded-lg font-bold transition-all ${
+                className={`text-[11px] px-2.5 py-1 rounded-lg font-bold transition-all ${
                   mapProvider === 'cartoDark' ? 'bg-white text-secondary shadow-xs' : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
-                Cyber Oscuro
+                Cyber
               </button>
             </div>
           </div>
 
           {/* Contenedor del Mapa Leaflet */}
-          <div className="relative flex-1 rounded-2xl overflow-hidden border border-slate-200 shadow-inner min-h-[380px] z-0">
+          <div className="relative flex-1 rounded-2xl overflow-hidden border border-slate-200 shadow-inner min-h-[340px] sm:min-h-[380px] z-0">
             <div ref={mapContainerRef} className="w-full h-full z-0" />
 
             {/* Botones Flotantes de Navegación Rápida */}
-            <div className="absolute top-4 right-4 z-[400] flex items-center gap-2">
+            <div className="absolute top-3 right-3 sm:top-4 sm:right-4 z-[400] flex items-center gap-2">
               <button
                 onClick={handleCenterUser}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-secondary/90 hover:bg-secondary text-white rounded-xl shadow-lg border border-white/10 backdrop-blur-md text-xs font-bold transition-all hover:scale-105 active:scale-95"
+                className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 bg-secondary/90 hover:bg-secondary text-white rounded-xl shadow-lg border border-white/10 backdrop-blur-md text-[11px] sm:text-xs font-bold transition-all hover:scale-105 active:scale-95"
                 title="Centrar en mi ubicación GPS"
               >
-                <Crosshair size={14} className="text-accent" />
+                <Crosshair size={13} className="text-accent" />
                 <span>Mi Ubicación</span>
               </button>
 
               <button
                 onClick={handleOpenGoogleMaps}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-secondary/90 hover:bg-secondary text-white rounded-xl shadow-lg border border-white/10 backdrop-blur-md text-xs font-bold transition-all hover:scale-105 active:scale-95"
+                className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 bg-secondary/90 hover:bg-secondary text-white rounded-xl shadow-lg border border-white/10 backdrop-blur-md text-[11px] sm:text-xs font-bold transition-all hover:scale-105 active:scale-95"
                 title="Abrir en Google Maps"
               >
-                <ExternalLink size={13} className="text-emerald-400" />
+                <ExternalLink size={12} className="text-emerald-400" />
                 <span className="hidden sm:inline">Google Maps</span>
               </button>
             </div>
 
             {/* Indicador de ayuda al usuario para fijar geocerca con un clic */}
-            <div className="absolute bottom-3 right-3 z-[400] text-[10px] font-bold text-slate-700 bg-white/95 backdrop-blur-md px-3 py-1.5 rounded-xl border border-slate-200 shadow-md flex items-center gap-1.5">
+            <div className="hidden sm:flex absolute bottom-3 right-3 z-[400] text-[10px] font-bold text-slate-700 bg-white/95 backdrop-blur-md px-3 py-1.5 rounded-xl border border-slate-200 shadow-md items-center gap-1.5">
               <MapPin size={12} className="text-primary" />
-              <span>Haz clic en el mapa para posicionar un nuevo perímetro</span>
+              <span>Clic en el mapa para ubicar nuevo perímetro</span>
             </div>
 
             {/* Leyenda interactiva */}
-            <div className="absolute bottom-3 left-3 z-[400] bg-secondary/90 backdrop-blur-md p-2.5 rounded-xl border border-white/10 text-[10px] text-slate-200 space-y-1 shadow-lg">
+            <div className="absolute bottom-3 left-3 z-[400] bg-secondary/95 backdrop-blur-md p-2 sm:p-2.5 rounded-xl border border-white/10 text-[9px] sm:text-[10px] text-slate-200 space-y-1 shadow-lg max-w-[210px] sm:max-w-none">
               <div className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" /> Zona Segura (Dentro)
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0" /> Vehículo en Zona Segura
               </div>
               <div className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-rose-500" /> Zona Violada (Fuera)
+                <span className="w-2.5 h-2.5 rounded-full bg-[#2C7A58] shrink-0" /> Zona Autorizada
               </div>
               <div className="flex items-center gap-1.5">
-                <span className="w-2.5 h-0.5 border border-dashed border-accent" /> Margen de Histéresis (+25m)
+                <span className="w-2.5 h-2.5 rounded-full bg-rose-500 shrink-0" /> Fuera de Zona (Alerta)
               </div>
             </div>
           </div>
@@ -647,7 +691,7 @@ export function GeofencingView() {
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="font-extrabold text-xs uppercase tracking-wider text-slate-400">
-              Perímetros Registrados ({geofences.length})
+              Zonas Registradas ({geofences.length})
             </h3>
             <span className="text-[11px] font-bold text-primary">
               Toca para inspeccionar
@@ -753,14 +797,41 @@ export function GeofencingView() {
           <div className="space-y-3">
             {geofences.length === 0 && !isCreating && (
               <div className="p-6 bg-slate-50 rounded-2xl border border-slate-200 text-center text-slate-500 text-xs">
-                No tienes geocercas configuradas. Presiona <strong>«Crear Geocerca»</strong> para registrar tu primera zona segura.
+                No tienes zonas configuradas. Presiona <strong>«Crear Geocerca»</strong> para registrar tu primera zona segura.
               </div>
             )}
 
             {geofences.map((geo) => {
               const isSelected = selectedGeo?.id === geo.id;
               const status = getGeofenceStatus(geo, userLocation);
-              const isBreached = status.isOutside && geo.status === 'active';
+              const isInsideThis = status.isInside;
+
+              let badgeLabel = 'Pausada';
+              let badgeStyle = 'bg-slate-100 text-slate-500 border border-slate-200';
+
+              if (geo.status === 'active') {
+                if (isInsideThis) {
+                  badgeLabel = '🟢 Vehículo Aquí (Dentro)';
+                  badgeStyle = 'bg-emerald-50 text-emerald-700 border border-emerald-300 font-bold';
+                } else if (!isGlobalBreach && isVehicleInAnySafeZone) {
+                  const currentName = safeZonesWithVehicle[0]?.name || 'otra zona';
+                  badgeLabel = `🛡️ Autorizada (En ${currentName})`;
+                  badgeStyle = 'bg-indigo-50 text-indigo-700 border border-indigo-200';
+                } else {
+                  badgeLabel = '⚠️ Fuera de Perímetro';
+                  badgeStyle = 'bg-rose-50 text-rose-700 border border-rose-300 animate-pulse';
+                }
+              }
+
+              let statusDescription = status.distanceText;
+              if (geo.status === 'active') {
+                if (isInsideThis) {
+                  statusDescription = 'Vehículo protegido dentro de esta zona segura.';
+                } else if (!isGlobalBreach && isVehicleInAnySafeZone) {
+                  const currentName = safeZonesWithVehicle[0]?.name || 'otra zona autorizada';
+                  statusDescription = `Vehículo seguro en "${currentName}". ${status.distanceText}.`;
+                }
+              }
 
               return (
                 <div
@@ -777,26 +848,22 @@ export function GeofencingView() {
                       : 'bg-white/90 border-slate-200/80 hover:bg-slate-50'
                   }`}
                 >
-                  <div className="flex justify-between items-start mb-2">
+                  <div className="flex justify-between items-start mb-2 gap-2">
                     <div className="flex items-center gap-2">
                       {geo.type === 'circle' ? (
-                        <Circle size={16} className={isBreached ? 'text-rose-600' : 'text-primary'} />
+                        <Circle size={16} className={isInsideThis ? 'text-emerald-600' : (isGlobalBreach ? 'text-rose-600' : 'text-primary')} />
                       ) : (
-                        <Hexagon size={16} className={isBreached ? 'text-rose-600' : 'text-secondary'} />
+                        <Hexagon size={16} className={isInsideThis ? 'text-emerald-600' : (isGlobalBreach ? 'text-rose-600' : 'text-secondary')} />
                       )}
                       <h4 className="font-extrabold text-secondary text-sm">{geo.name}</h4>
                     </div>
-                    <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase ${
-                      geo.status === 'active'
-                        ? (isBreached ? 'bg-rose-100 text-rose-700 animate-pulse' : 'bg-emerald-100 text-emerald-800')
-                        : 'bg-slate-100 text-slate-500'
-                    }`}>
-                      {geo.status === 'active' ? status.label : 'Pausada'}
+                    <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase shrink-0 ${badgeStyle}`}>
+                      {badgeLabel}
                     </span>
                   </div>
 
                   <p className="text-[11px] text-slate-500 font-medium mb-3">
-                    {status.distanceText}
+                    {statusDescription}
                   </p>
 
                   <div className="grid grid-cols-2 gap-2 text-xs text-slate-600 font-medium pt-2 border-t border-slate-100">
@@ -806,7 +873,7 @@ export function GeofencingView() {
                     </div>
                     <div className="flex items-center gap-1 truncate">
                       <Bell size={12} className="text-slate-400 shrink-0" />
-                      <span>{geo.events.join(', ')}</span>
+                      <span>{geo.events?.join(', ') || 'EXIT, ENTER'}</span>
                     </div>
                   </div>
 

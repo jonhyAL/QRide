@@ -101,9 +101,9 @@ export function ProximityAlertView() {
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         videoRef.current.onloadedmetadata = () => {
-          videoRef.current.play().catch(e => console.warn('Play metadata error:', e));
+          videoRef.current?.play().catch(e => console.warn('Play metadata error:', e));
         };
-        videoRef.current.play().catch(e => console.warn('Direct play error:', e));
+        videoRef.current?.play().catch(e => console.warn('Direct play error:', e));
       }
       proximityAudio.playArmTone();
 
@@ -216,13 +216,12 @@ export function ProximityAlertView() {
             setClosestObject(nearest);
 
             // Disparar alertas acústicas adaptativas según la proximidad del objeto más cercano
+            // Regla solicitada: Solo suena cuando el objetivo está en ROJO (zona crítica < 1.8m).
+            // En AMARILLO (advertencia) solo se resalta visualmente en pantalla sin sonido.
             if (nearest && soundEnabledRef.current) {
               if (nearest.proximity.zone === 'critical') {
-                // Menor a 1.8 metros: sonido continuo y penetrante
+                // Menor a 1.8 metros: sonido penetrante de advertencia crítica
                 proximityAudio.playCriticalTone();
-              } else if (nearest.proximity.zone === 'warning') {
-                // Entre 1.8 y 3.6 metros: sonido intermitente tipo radar
-                proximityAudio.playWarningTone();
               }
             }
 
@@ -336,27 +335,33 @@ export function ProximityAlertView() {
 
   return (
     <div className="space-y-6">
-      {/* Banner Superior ADAS de Proximidad */}
-      <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 p-5 md:p-6 rounded-3xl border border-rose-500/20 text-white shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+      {/* Banner Superior ADAS de Proximidad con Paleta Oficial QRide */}
+      <div className="bg-gradient-to-br from-secondary via-[#382f60] to-secondary p-5 md:p-6 rounded-[2rem] border border-secondary/60 text-white shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
-          <h4 className="font-extrabold text-base md:text-lg">
-            Radar ADAS de Proximidad & Alerta de Colisión con IA
-          </h4>
-          <p className="text-xs text-slate-300 max-w-2xl mt-1">
-            Escanea en tiempo real mediante visión neuronal para detectar peatones, automóviles, camiones y motocicletas. Calcula la distancia métrica y dispara alertas sonoras automáticas tipo sonar (&lt; 2.0m).
+          <div className="flex items-center gap-2 flex-wrap mb-1">
+            <h4 className="font-extrabold text-base md:text-lg text-white">
+              Radar ADAS de Proximidad & Alerta de Colisión IA
+            </h4>
+            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-primary/20 text-white border border-primary/30">
+              Visión Neuronal 10 FPS
+            </span>
+          </div>
+          <p className="text-xs text-slate-300 max-w-2xl leading-relaxed">
+            Escanea en tiempo real mediante visión artificial para detectar peatones, automóviles, camiones y motocicletas. Calcula la distancia métrica continua y activa alertas automáticas por proximidad (&lt; 2.5m).
           </p>
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap shrink-0">
+        <div className="flex items-center gap-2 shrink-0">
           <button
+            type="button"
             onClick={() => setSoundEnabled(!soundEnabled)}
-            className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors border ${
+            className={`px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 transition-all border cursor-pointer ${
               soundEnabled
-                ? 'bg-rose-500/20 text-rose-300 border-rose-500/40 hover:bg-rose-500/30'
-                : 'bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-700'
+                ? 'bg-primary/20 text-white border-primary/40 hover:bg-primary/30 shadow-sm'
+                : 'bg-white/10 text-slate-400 border-white/10 hover:bg-white/15'
             }`}
           >
-            {soundEnabled ? <Volume2 size={16} className="text-rose-400" /> : <VolumeX size={16} />}
+            {soundEnabled ? <Volume2 size={16} className="text-accent" /> : <VolumeX size={16} />}
             <span>{soundEnabled ? 'Sonido Activo' : 'Silenciado'}</span>
           </button>
         </div>
@@ -367,7 +372,7 @@ export function ProximityAlertView() {
         
         {/* Columna Izquierda: Visor de la Cámara con Overlay AR y Radar (8 cols) */}
         <div className="lg:col-span-8 space-y-4">
-          <div className="relative w-full aspect-video md:aspect-[16/10] bg-slate-950 rounded-3xl overflow-hidden border border-slate-800 shadow-2xl flex items-center justify-center">
+          <div className="relative w-full aspect-[4/3] sm:aspect-video md:aspect-[16/10] bg-slate-950 rounded-[2rem] overflow-hidden border border-slate-800 shadow-2xl flex items-center justify-center">
             
             {/* 1. Elemento de Video */}
             <video
@@ -394,24 +399,24 @@ export function ProximityAlertView() {
             {/* 3. Modo Cámara Apagada / Estado Inactivo */}
             {!isCameraActive && (
               <div className="text-center p-6 max-w-md">
-                <div className="w-16 h-16 rounded-3xl bg-slate-800 text-slate-400 flex items-center justify-center mx-auto mb-3 border border-slate-700">
+                <div className="w-16 h-16 rounded-3xl bg-secondary/80 text-accent flex items-center justify-center mx-auto mb-3 border border-secondary">
                   <Eye size={32} />
                 </div>
-                <h5 className="font-extrabold text-white text-base">Radar Óptico Desconectado</h5>
+                <h5 className="font-extrabold text-white text-base">Radar Óptico en Espera</h5>
                 <p className="text-xs text-slate-400 mt-1">
                   Enciende la cámara para escanear personas, vehículos y puntos ciegos en tiempo real con Inteligencia Artificial.
                 </p>
-                <div className="flex items-center justify-center gap-3 mt-4">
+                <div className="flex items-center justify-center gap-3 mt-5">
                   <button
                     onClick={startCamera}
                     disabled={isModelLoading}
-                    className="px-5 py-2.5 bg-gradient-to-r from-rose-600 to-indigo-600 hover:from-rose-500 hover:to-indigo-500 text-white text-xs font-black rounded-xl shadow-lg shadow-rose-500/20 flex items-center gap-2 transition-all active:scale-95"
+                    className="px-6 py-3 bg-primary hover:bg-btn-hover text-white text-xs font-black rounded-xl shadow-lg shadow-primary/30 flex items-center gap-2 transition-all active:scale-95 cursor-pointer"
                   >
-                    <Camera size={16} /> Activar Cámara en Vivo
+                    <Camera size={16} /> Activar Radar en Vivo
                   </button>
                 </div>
                 {isModelLoading && (
-                  <p className="text-[11px] text-cyan-400 font-mono mt-3 animate-pulse">
+                  <p className="text-[11px] text-accent font-mono mt-3 animate-pulse">
                     {modelStatus}
                   </p>
                 )}
@@ -423,36 +428,36 @@ export function ProximityAlertView() {
               <motion.div
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
-                className="absolute top-4 left-4 right-4 bg-gradient-to-r from-rose-600 via-red-600 to-rose-700 text-white px-4 py-3 rounded-2xl shadow-2xl border-2 border-white/40 flex items-center justify-between z-30"
+                className="absolute top-3 left-3 right-3 sm:top-4 sm:left-4 sm:right-4 bg-gradient-to-r from-primary via-rose-700 to-primary text-white p-3 sm:p-4 rounded-2xl shadow-2xl border-2 border-white/40 flex items-center justify-between z-30"
               >
-                <div className="flex items-center gap-3">
-                  <AlertTriangle size={24} className="animate-bounce shrink-0" />
-                  <div>
-                    <h5 className="font-black text-sm uppercase tracking-wide">
-                      ¡ALERTA DE PROXIMIDAD INMINENTE!
+                <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+                  <AlertTriangle size={22} className="animate-bounce shrink-0 text-white" />
+                  <div className="min-w-0">
+                    <h5 className="font-black text-xs sm:text-sm uppercase tracking-wide truncate">
+                      ¡PROXIMIDAD CRÍTICA INMINENTE!
                     </h5>
-                    <p className="text-[11px] text-red-100 font-medium">
-                      {closestObject.class.toUpperCase()} a solo {closestObject.proximity.distanceMeters}m de tu moto.
+                    <p className="text-[10px] sm:text-[11px] text-red-100 font-medium truncate">
+                      {closestObject.class.toUpperCase()} a solo {closestObject.proximity.distanceMeters}m de tu vehículo.
                     </p>
                   </div>
                 </div>
-                <span className="text-xl font-black font-mono bg-black/30 px-3 py-1 rounded-xl">
+                <span className="text-lg sm:text-xl font-black font-mono bg-black/40 px-2.5 py-1 rounded-xl shrink-0">
                   {closestObject.proximity.distanceMeters}m
                 </span>
               </motion.div>
             )}
 
             {/* 5. Barra Inferior HUD de Estado */}
-            <div className="absolute bottom-3 left-3 right-3 z-20 flex items-center justify-between text-[11px] font-mono text-white bg-slate-900/80 backdrop-blur-md px-3.5 py-2 rounded-xl border border-slate-800">
+            <div className="absolute bottom-3 left-3 right-3 z-20 flex items-center justify-between text-[11px] font-mono text-white bg-secondary/85 backdrop-blur-md px-3.5 py-2 rounded-xl border border-white/10">
               <div className="flex items-center gap-3">
-                <span className="flex items-center gap-1.5 text-rose-400 font-bold">
+                <span className="flex items-center gap-1.5 text-accent font-bold">
                   <Radio size={13} className="animate-pulse" /> ADAS ACTIVO
                 </span>
-                <span className="text-slate-400">
-                  Objetos en cuadro: <strong className="text-white">{detections.length}</strong>
+                <span className="text-slate-300">
+                  Objetos: <strong className="text-white">{detections.length}</strong>
                 </span>
                 {isCameraActive && (
-                  <span className="text-slate-500 hidden sm:inline">
+                  <span className="text-slate-400 hidden sm:inline">
                     {fps} FPS
                   </span>
                 )}
@@ -467,48 +472,42 @@ export function ProximityAlertView() {
             </div>
           </div>
 
-          {/* Controles de Cámara y Pruebas Sonoras */}
-          <div className="flex items-center justify-between gap-2 flex-wrap bg-white p-3.5 rounded-2xl border border-slate-200">
-            <div className="flex items-center gap-2">
+          {/* Controles de Cámara Simplificados (Sin botones manuales de Beep/Alarma) */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-3.5 rounded-2xl border border-slate-200/80 shadow-xs">
+            <div className="flex items-center gap-2 flex-wrap">
               {isCameraActive ? (
                 <>
                   <button
+                    type="button"
                     onClick={stopCamera}
-                    className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl"
+                    className="flex-1 sm:flex-initial px-4 py-2.5 bg-secondary hover:bg-secondary/90 text-white text-xs font-bold rounded-xl transition-all active:scale-95 cursor-pointer shadow-xs"
                   >
-                    Detener Cámara
+                    Detener Radar
                   </button>
                   <button
+                    type="button"
                     onClick={toggleCameraFacing}
                     title="Rotar cámara"
-                    className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl"
+                    className="p-2.5 bg-slate-100 hover:bg-slate-200 text-secondary rounded-xl transition-all cursor-pointer"
                   >
                     <RotateCw size={16} />
                   </button>
                 </>
               ) : (
                 <button
+                  type="button"
                   onClick={startCamera}
                   disabled={isModelLoading}
-                  className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-black rounded-xl shadow-md flex items-center gap-2"
+                  className="w-full sm:w-auto px-5 py-2.5 bg-primary hover:bg-btn-hover text-white text-xs font-black rounded-xl shadow-md shadow-primary/25 flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer"
                 >
-                  <Camera size={16} /> Abrir Cámara en Vivo
+                  <Camera size={16} /> Activar Cámara del Radar
                 </button>
               )}
+            </div>
 
-              {/* Botones para verificar el sintetizador de audio del dispositivo */}
-              <button
-                onClick={() => triggerManualTestBeep('warning')}
-                className="px-3 py-2 bg-amber-50 hover:bg-amber-100 text-amber-700 text-xs font-bold rounded-xl border border-amber-200 flex items-center gap-1.5"
-              >
-                <Volume2 size={14} /> Beep Advertencia
-              </button>
-              <button
-                onClick={() => triggerManualTestBeep('critical')}
-                className="px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold rounded-xl border border-rose-200 flex items-center gap-1.5"
-              >
-                <Volume2 size={14} /> Alarma Crítica
-              </button>
+            <div className="text-[11px] text-slate-500 font-medium flex items-center gap-1.5 self-center sm:self-auto">
+              <ShieldCheck size={14} className="text-primary" />
+              <span>Detección continua automatizada</span>
             </div>
           </div>
         </div>

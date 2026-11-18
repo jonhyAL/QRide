@@ -18,7 +18,7 @@ import {
   ExternalLink, 
   Layers, 
   Crosshair, 
-  Sparkles, 
+  QrCode,
   Clock, 
   Flame, 
   Zap, 
@@ -34,7 +34,9 @@ import {
   Flag,
   Route,
   ChevronRight,
-  LocateFixed
+  LocateFixed,
+  ZoomIn,
+  Maximize2
 } from 'lucide-react';
 import { loadLeaflet, MAP_PROVIDERS } from '../../utils/leafletLoader';
 import { 
@@ -42,6 +44,7 @@ import {
   getTrafficLevel, 
   analyzeRouteWithGeminiAI,
   generateRouteSnapshotCanvas,
+  reverseGeocode,
   searchPlaces,
   calculatePlannedRoute,
   generateTripPdf
@@ -49,7 +52,7 @@ import {
 
 const REPORTS_STORAGE_KEY = 'qride_gps_route_reports_v2';
 
-export function LiveGpsTracker({ isOpen = true, onClose, isModal = false }) {
+export function LiveGpsTracker({ isOpen = true, onClose, isModal = false, onTrackingChange }) {
   // Estados de flujo: 'idle' (Inicio) | 'tracking' (En Ruta) | 'analyzing' (Procesando con IA) | 'report' (Reporte Pericial) | 'history' (Historial)
   const [routeState, setRouteState] = useState('idle');
 
@@ -68,7 +71,9 @@ export function LiveGpsTracker({ isOpen = true, onClose, isModal = false }) {
   // Estados de IA y Reporte
   const [aiReport, setAiReport] = useState(null);
   const [aiProgressText, setAiProgressText] = useState('');
+  const [analyzingStage, setAnalyzingStage] = useState('loading'); // 'loading' | 'success'
   const [routeSnapshot, setRouteSnapshot] = useState(null);
+  const [isSnapshotLightboxOpen, setIsSnapshotLightboxOpen] = useState(false);
   const [gpsError, setGpsError] = useState(null);
 
   // Historial de reportes guardados
@@ -111,6 +116,33 @@ export function LiveGpsTracker({ isOpen = true, onClose, isModal = false }) {
   useEffect(() => {
     followVehicleRef.current = followVehicle;
   }, [followVehicle]);
+
+  // Redimensionar Leaflet al entrar en modo pantalla completa
+  useEffect(() => {
+    if (routeState === 'tracking' && mapInstanceRef.current) {
+      const timer = setTimeout(() => {
+        if (mapInstanceRef.current) {
+          mapInstanceRef.current.invalidateSize();
+        }
+      }, 200);
+      return () => clearTimeout(timer);
+    }
+  }, [routeState]);
+
+  // Notificar al componente padre para ocultar barras de navegación en móvil y PC
+  useEffect(() => {
+    if (onTrackingChange) {
+      onTrackingChange(routeState === 'tracking');
+    }
+  }, [routeState, onTrackingChange]);
+
+  useEffect(() => {
+    return () => {
+      if (onTrackingChange) {
+        onTrackingChange(false);
+      }
+    };
+  }, [onTrackingChange]);
 
   // Colores de tráfico para polilíneas y badges (Paleta QRide)
   const TRAFFIC_COLORS = {
@@ -570,7 +602,8 @@ export function LiveGpsTracker({ isOpen = true, onClose, isModal = false }) {
     }
 
     setRouteState('analyzing');
-    setAiProgressText('Compilando telemetría del trayecto y calculando congestión...');
+    setAnalyzingStage('loading');
+    setAiProgressText('Obteniendo direcciones escritas y compilando telemetría...');
 
     const pts = routePoints.length > 0 ? routePoints : (currentPosition ? [currentPosition] : []);
 
@@ -593,26 +626,56 @@ export function LiveGpsTracker({ isOpen = true, onClose, isModal = false }) {
       ? Number(((totalDistanceKm / (elapsedSeconds / 3600))).toFixed(1))
       : 0;
 
+    // Obtener direcciones escritas reales con Nominatim OpenStreetMap
+    const startPt = pts[0];
+    const endPt = pts[pts.length - 1];
+    let startAddress = 'Ubicación de partida';
+    let endAddress = 'Destino final';
+
+    if (startPt) {
+      try {
+        startAddress = await reverseGeocode(startPt.lat, startPt.lng);
+      } catch (e) {
+        startAddress = `Lat: ${startPt.lat.toFixed(4)}, Lng: ${startPt.lng.toFixed(4)}`;
+      }
+    }
+
+    if (endPt) {
+      try {
+        endAddress = await reverseGeocode(endPt.lat, endPt.lng);
+      } catch (e) {
+        endAddress = `Lat: ${endPt.lat.toFixed(4)}, Lng: ${endPt.lng.toFixed(4)}`;
+      }
+    }
+
     const routeData = {
       totalDistanceKm: Number(totalDistanceKm.toFixed(2)),
       durationSeconds: elapsedSeconds,
       avgSpeedKmH: avgSpeed,
       maxSpeedKmH: maxSpeedKmH,
       pointsCount: pts.length,
+      startAddress,
+      endAddress,
       trafficStats: {
         heavyPercent,
         moderatePercent,
         fluentPercent
       },
-      startCoords: pts[0] ? { lat: pts[0].lat, lng: pts[0].lng } : null,
-      endCoords: pts[pts.length - 1] ? { lat: pts[pts.length - 1].lat, lng: pts[pts.length - 1].lng } : null
+      startCoords: startPt ? { lat: startPt.lat, lng: startPt.lng } : null,
+      endCoords: endPt ? { lat: endPt.lat, lng: endPt.lng } : null
     };
 
-    const snapshotBase64 = generateRouteSnapshotCanvas(pts, routeData);
-    setRouteSnapshot(snapshotBase64);
+    setAiProgressText('Generando captura cartográfica del mapa real...');
+    let snapshotBase64 = null;
+    try {
+      snapshotBase64 = await generateRouteSnapshotCanvas(pts, routeData, startAddress, endAddress);
+      setRouteSnapshot(snapshotBase64);
+    } catch (e) {
+      console.warn('Error capturando mapa de ruta:', e);
+    }
 
     try {
-      setAiProgressText('Analizando ruta con Google Gemini Vision AI...');
+      setAiProgressText('QRide IA evaluando telemetría del trayecto y congestión...');
       const report = await analyzeRouteWithGeminiAI(
         routeData, 
         snapshotBase64, 
@@ -633,6 +696,8 @@ export function LiveGpsTracker({ isOpen = true, onClose, isModal = false }) {
           minute: '2-digit'
         }),
         ...report,
+        startAddress,
+        endAddress,
         routeData,
         snapshotImage: snapshotBase64
       };
@@ -647,10 +712,22 @@ export function LiveGpsTracker({ isOpen = true, onClose, isModal = false }) {
       }
 
       setAiReport(reportFull);
-      setRouteState('report');
+
+      // Efecto visual requerido: el icono QR se transforma en palomita verde
+      setAnalyzingStage('success');
+      setAiProgressText('¡Reporte QRide IA Generado con Éxito!');
+
+      // Breve pausa para mostrar la animación antes de abrir el reporte
+      setTimeout(() => {
+        setRouteState('report');
+      }, 1200);
+
     } catch (err) {
       console.error('Error generando reporte con IA:', err);
-      setRouteState('report');
+      setAnalyzingStage('success');
+      setTimeout(() => {
+        setRouteState('report');
+      }, 1000);
     }
   };
 
@@ -710,18 +787,13 @@ export function LiveGpsTracker({ isOpen = true, onClose, isModal = false }) {
         
         {/* Cabecera con selector entre Nueva Ruta e Historial */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
-          <div className="flex items-center gap-3.5">
-            <div className="p-3 bg-primary/10 text-primary rounded-2xl shadow-inner">
-              <Radio size={28} className="animate-pulse" />
-            </div>
-            <div>
-              <h2 className="text-2xl font-black text-secondary tracking-tight">
-                Rastreo GPS en Vivo & Registro de Ruta
-              </h2>
-              <p className="text-xs md:text-sm text-slate-500 font-medium">
-                Monitoreo satelital en tiempo real con análisis pericial de tráfico mediante Google Gemini
-              </p>
-            </div>
+          <div>
+            <h2 className="text-2xl font-black text-secondary tracking-tight">
+              Rastreo GPS en Vivo & Registro de Ruta
+            </h2>
+            <p className="text-xs md:text-sm text-slate-500 font-medium">
+              Monitoreo satelital en tiempo real con peritaje inteligente mediante QRide IA
+            </p>
           </div>
 
           {/* Botón Acceso Rápido al Historial de Reportes */}
@@ -759,7 +831,7 @@ export function LiveGpsTracker({ isOpen = true, onClose, isModal = false }) {
         )}
 
         {/* Hero Card Informativo - Texto y Botón completamente centrados con colores oficiales */}
-        <div className="relative overflow-hidden bg-gradient-to-br from-secondary via-[#382f60] to-secondary text-white p-8 md:p-14 rounded-[2rem] shadow-xl mb-8 border border-secondary/60 flex flex-col items-center justify-center text-center">
+        <div className="relative overflow-hidden bg-gradient-to-br from-secondary via-[#382f60] to-secondary text-white p-8 md:p-14 rounded-[2rem] shadow-xl border border-secondary/60 flex flex-col items-center justify-center text-center">
           <div className="absolute -right-10 -bottom-10 w-72 h-72 bg-primary/20 rounded-full blur-3xl pointer-events-none" />
           <div className="absolute -left-10 -top-10 w-60 h-60 bg-accent/20 rounded-full blur-3xl pointer-events-none" />
 
@@ -782,39 +854,6 @@ export function LiveGpsTracker({ isOpen = true, onClose, isModal = false }) {
                 <ArrowRight size={18} className="transition-transform group-hover:translate-x-1" />
               </button>
             </div>
-          </div>
-        </div>
-
-        {/* Pilares Informativos con Colores de la Web */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="bg-primary/5 p-5 rounded-2xl border border-primary/15 hover:border-primary/40 transition-colors">
-            <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center mb-3">
-              <Navigation size={20} />
-            </div>
-            <h4 className="font-bold text-secondary text-sm mb-1">Mapeo Satelital Real</h4>
-            <p className="text-xs text-slate-500 leading-relaxed font-medium">
-              Trazado continuo con coordenadas GPS de alta precisión en capas de Google Maps Calles, Satélite o Cyber.
-            </p>
-          </div>
-
-          <div className="bg-accent/5 p-5 rounded-2xl border border-accent/15 hover:border-accent/40 transition-colors">
-            <div className="w-10 h-10 rounded-xl bg-accent/10 text-accent flex items-center justify-center mb-3">
-              <TrendingUp size={20} />
-            </div>
-            <h4 className="font-bold text-secondary text-sm mb-1">Detección de Tráfico</h4>
-            <p className="text-xs text-slate-500 leading-relaxed font-medium">
-              Segmentación cromática automática: Verde para flujo libre, Amarillo en tráfico moderado y Rojo en detenciones.
-            </p>
-          </div>
-
-          <div className="bg-secondary/5 p-5 rounded-2xl border border-secondary/15 hover:border-secondary/40 transition-colors">
-            <div className="w-10 h-10 rounded-xl bg-secondary/10 text-secondary flex items-center justify-center mb-3">
-              <Sparkles size={20} />
-            </div>
-            <h4 className="font-bold text-secondary text-sm mb-1">Peritaje con Gemini IA</h4>
-            <p className="text-xs text-slate-500 leading-relaxed font-medium">
-              Al finalizar, la IA examina la captura visual del mapa y la telemetría para evaluar cuellos de botella y combustible.
-            </p>
           </div>
         </div>
 
@@ -955,33 +994,59 @@ export function LiveGpsTracker({ isOpen = true, onClose, isModal = false }) {
   }
 
   // ==========================================
-  // VISTA 3: PROCESANDO REPORTE CON IA (LOADING)
+  // VISTA 3: PROCESANDO REPORTE CON QRIDE IA (LOADING -> PALOMITA VERDE)
   // ==========================================
   if (routeState === 'analyzing') {
     return (
       <div className="bg-white/95 backdrop-blur-xl border border-white/60 p-8 md:p-14 rounded-[2.25rem] shadow-xl text-slate-800 text-center">
         <div className="max-w-md mx-auto">
-          <div className="relative w-24 h-24 mx-auto mb-6 flex items-center justify-center">
-            <div className="absolute inset-0 rounded-full border-4 border-primary/20 border-t-primary animate-spin" />
-            <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center text-primary">
-              <Sparkles size={30} className="animate-pulse" />
-            </div>
+          
+          {/* Contenedor Animado: Icono QR -> Palomita Verde Rellena */}
+          <div className="relative w-28 h-28 mx-auto mb-6 flex items-center justify-center">
+            {analyzingStage === 'loading' ? (
+              <>
+                <div className="absolute inset-0 rounded-full border-4 border-primary/20 border-t-primary animate-spin" />
+                <motion.div 
+                  initial={{ scale: 0.85, opacity: 0 }}
+                  animate={{ scale: [1, 1.08, 1], opacity: 1 }}
+                  transition={{ repeat: Infinity, duration: 1.8, ease: "easeInOut" }}
+                  className="w-18 h-18 rounded-2xl bg-primary/10 border border-primary/25 flex items-center justify-center text-primary shadow-inner"
+                >
+                  <QrCode size={36} className="text-primary" />
+                </motion.div>
+              </>
+            ) : (
+              <motion.div
+                initial={{ scale: 0.4, rotate: -40, opacity: 0 }}
+                animate={{ scale: [0.4, 1.15, 1], rotate: 0, opacity: 1 }}
+                transition={{ type: "spring", stiffness: 280, damping: 18 }}
+                className="w-24 h-24 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow-2xl shadow-emerald-500/50"
+              >
+                <CheckCircle2 size={54} className="text-white drop-shadow-md stroke-[2.5]" />
+              </motion.div>
+            )}
           </div>
 
           <h3 className="text-xl md:text-2xl font-black text-secondary mb-2">
-            Generando Reporte Pericial con IA
+            {analyzingStage === 'loading' ? 'QRide IA Generando Reporte Pericial' : '¡Reporte Generado con Éxito!'}
           </h3>
           <p className="text-xs md:text-sm text-slate-500 font-medium mb-6">
-            Google Gemini Vision AI está examinando la captura satelital del recorrido y calculando cuellos de botella.
+            {analyzingStage === 'loading' 
+              ? 'QRide IA está examinando la telemetría del recorrido y calculando cuellos de botella.'
+              : 'El análisis pericial y cartográfico de tu viaje ha finalizado con éxito.'}
           </p>
 
-          <div className="bg-secondary/5 p-4 rounded-2xl border border-secondary/15 text-xs font-mono text-secondary font-bold mb-4 flex items-center justify-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-primary animate-ping" />
-            <span>{aiProgressText || 'Procesando telemetría satelital...'}</span>
+          <div className={`p-4 rounded-2xl border text-xs font-mono font-bold mb-4 flex items-center justify-center gap-2.5 transition-colors ${
+            analyzingStage === 'loading' 
+              ? 'bg-secondary/5 border-secondary/15 text-secondary' 
+              : 'bg-emerald-50 border-emerald-200 text-emerald-800'
+          }`}>
+            <span className={`w-2.5 h-2.5 rounded-full ${analyzingStage === 'loading' ? 'bg-primary animate-ping' : 'bg-emerald-500'}`} />
+            <span>{aiProgressText || 'Procesando telemetría...'}</span>
           </div>
 
           <p className="text-[11px] text-slate-400">
-            Esto toma solo unos segundos. No cierres esta ventana.
+            {analyzingStage === 'loading' ? 'Esto toma solo unos segundos. No cierres esta ventana.' : 'Abriendo reporte pericial interactivo...'}
           </p>
         </div>
       </div>
@@ -998,32 +1063,27 @@ export function LiveGpsTracker({ isOpen = true, onClose, isModal = false }) {
     return (
       <div className="bg-white/95 backdrop-blur-xl border border-white/60 p-6 md:p-10 rounded-[2.25rem] shadow-xl text-slate-800">
         
-        {/* Cabecera del Reporte */}
+        {/* Cabecera del Reporte - Elegante y limpia sin icono al lado del título */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-slate-200/80 mb-6">
-          <div className="flex items-center gap-3.5">
-            <div className="p-3 bg-primary/10 text-primary rounded-2xl shadow-inner">
-              <Award size={28} />
+          <div>
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <h2 className="text-xl md:text-2xl font-black text-secondary tracking-tight">
+                Reporte Pericial de Ruta & Tráfico
+              </h2>
+              <span className="px-3 py-1 rounded-full text-[11px] font-black uppercase tracking-wider bg-primary/10 text-primary border border-primary/20">
+                {aiReport.aiEngineName || 'QRide IA'}
+              </span>
             </div>
-            <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <h2 className="text-xl md:text-2xl font-black text-secondary tracking-tight">
-                  Reporte Pericial de Ruta & Tráfico
-                </h2>
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-secondary/10 text-secondary border border-secondary/20">
-                  {aiReport.aiEngineName || 'Google Gemini AI'}
-                </span>
-              </div>
-              <p className="text-xs text-slate-500 font-medium">
-                Registrado el {aiReport.formattedDate || new Date(aiReport.createdAt || Date.now()).toLocaleDateString('es-MX')} a las {aiReport.formattedTime || ''} hrs
-              </p>
-            </div>
+            <p className="text-xs text-slate-500 font-medium mt-1">
+              Emitido el {aiReport.formattedDate || new Date(aiReport.createdAt || Date.now()).toLocaleDateString('es-MX')} • {aiReport.formattedTime || ''} hrs
+            </p>
           </div>
 
           {/* Acciones del Reporte */}
           <div className="flex items-center gap-2 flex-wrap">
             <button
               onClick={() => generateTripPdf(aiReport)}
-              className="flex items-center gap-1.5 px-4 py-2 bg-secondary hover:bg-secondary/90 text-white rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer"
+              className="flex items-center gap-2 px-4 py-2.5 bg-primary hover:bg-btn-hover text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-primary/25 cursor-pointer"
               title="Descargar documento formal en PDF"
             >
               <FileDown size={15} />
@@ -1032,7 +1092,7 @@ export function LiveGpsTracker({ isOpen = true, onClose, isModal = false }) {
 
             <button
               onClick={() => window.print()}
-              className="flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-secondary rounded-xl text-xs font-bold transition-all"
+              className="flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-secondary rounded-xl text-xs font-bold transition-all cursor-pointer"
               title="Imprimir"
             >
               <Printer size={15} />
@@ -1040,7 +1100,7 @@ export function LiveGpsTracker({ isOpen = true, onClose, isModal = false }) {
 
             <button
               onClick={() => setRouteState('history')}
-              className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-secondary rounded-xl text-xs font-bold transition-all"
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-secondary rounded-xl text-xs font-bold transition-all cursor-pointer"
             >
               <FolderClock size={15} />
               <span>Ver Historial</span>
@@ -1048,7 +1108,7 @@ export function LiveGpsTracker({ isOpen = true, onClose, isModal = false }) {
 
             <button
               onClick={handleResetToIdle}
-              className="flex items-center gap-1.5 px-4 py-2 bg-primary hover:bg-btn-hover text-white rounded-xl text-xs font-bold shadow-md shadow-primary/25 transition-all cursor-pointer"
+              className="flex items-center gap-1.5 px-4 py-2 bg-secondary hover:bg-secondary/90 text-white rounded-xl text-xs font-bold shadow-sm transition-all cursor-pointer"
             >
               <RotateCcw size={15} />
               <span>Nueva Ruta</span>
@@ -1056,53 +1116,106 @@ export function LiveGpsTracker({ isOpen = true, onClose, isModal = false }) {
           </div>
         </div>
 
-        {/* Resumen Principal: Veredicto y Score */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        {/* Trayecto Registrado: Origen y Destino */}
+        <div className="bg-slate-50/80 border border-slate-200/80 rounded-2xl p-4 md:p-5 mb-6 shadow-xs">
+          <div className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-3 flex items-center gap-1.5">
+            <Route size={14} className="text-primary" />
+            <span>Trayecto Vial Recorrido</span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
+            {/* Origen */}
+            <div className="flex items-start gap-3 p-3 bg-white rounded-xl border border-slate-200/60 shadow-2xs">
+              <div className="p-2 bg-emerald-50 text-emerald-600 rounded-xl shrink-0 mt-0.5 border border-emerald-200">
+                <MapPin size={18} />
+              </div>
+              <div className="min-w-0">
+                <span className="text-[10px] font-black uppercase tracking-wider text-emerald-700 block">
+                  Punto de Partida
+                </span>
+                <p className="text-xs sm:text-sm font-bold text-secondary leading-snug mt-0.5 break-words">
+                  {aiReport.startAddress || reportData.startAddress || 'Ubicación inicial registrada'}
+                </p>
+                {reportData.startCoords && (
+                  <span className="text-[10px] text-slate-400 font-mono block mt-1">
+                    GPS: {reportData.startCoords.lat.toFixed(5)}, {reportData.startCoords.lng.toFixed(5)}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Destino */}
+            <div className="flex items-start gap-3 p-3 bg-white rounded-xl border border-slate-200/60 shadow-2xs">
+              <div className="p-2 bg-rose-50 text-primary rounded-xl shrink-0 mt-0.5 border border-rose-200">
+                <Flag size={18} />
+              </div>
+              <div className="min-w-0">
+                <span className="text-[10px] font-black uppercase tracking-wider text-primary block">
+                  Destino Final
+                </span>
+                <p className="text-xs sm:text-sm font-bold text-secondary leading-snug mt-0.5 break-words">
+                  {aiReport.endAddress || reportData.endAddress || 'Destino final registrado'}
+                </p>
+                {reportData.endCoords && (
+                  <span className="text-[10px] text-slate-400 font-mono block mt-1">
+                    GPS: {reportData.endCoords.lat.toFixed(5)}, {reportData.endCoords.lng.toFixed(5)}
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Calificación y Telemetría del Viaje */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+          {/* Tarjeta de Calificación con estilo insignia QRide */}
           <div className="bg-gradient-to-br from-secondary via-[#382f60] to-secondary text-white p-6 rounded-2xl shadow-lg border border-secondary/60 flex flex-col justify-between">
             <div className="flex items-center justify-between mb-2">
               <span className="text-[11px] font-extrabold uppercase tracking-wider text-accent">
-                Calificación de Ruta
+                Calificación Pericial
               </span>
-              <Sparkles size={16} className="text-accent" />
+              <QrCode size={18} className="text-accent" />
             </div>
-            <div className="my-2">
+            <div className="my-3">
               <div className="text-4xl md:text-5xl font-black tracking-tight text-white flex items-baseline gap-1">
                 {aiReport.tripScore || 85}
                 <span className="text-lg text-slate-400 font-bold">/100</span>
               </div>
-              <p className="text-xs font-bold text-accent mt-1">
+              <p className="text-xs sm:text-sm font-bold text-accent mt-1.5">
                 {aiReport.verdictLabel || 'Ruta Fluida y Despejada'}
               </p>
             </div>
-            <div className="text-[11px] text-slate-400 font-medium">
-              Eficiencia de trayecto estimada: <span className="text-white font-bold">{aiReport.efficiencyScore || 90}%</span>
+            <div className="pt-3 border-t border-white/10 text-[11px] text-slate-300 font-medium flex items-center justify-between">
+              <span>Eficiencia de trayecto:</span>
+              <strong className="text-white font-bold">{aiReport.efficiencyScore || 90}%</strong>
             </div>
           </div>
 
-          <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200/80 md:col-span-2 flex flex-col justify-between">
-            <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400 mb-2">
+          {/* Tarjeta de Telemetría Detallada */}
+          <div className="bg-slate-50/80 p-5 rounded-2xl border border-slate-200/80 lg:col-span-2 flex flex-col justify-between">
+            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-2 block">
               Telemetría Registrada
             </span>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <div className="p-3 bg-white rounded-xl border border-slate-100 shadow-xs">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+              <div className="p-3 bg-white rounded-xl border border-slate-200/60 shadow-2xs">
                 <span className="text-[10px] text-slate-400 font-bold block uppercase">Distancia</span>
                 <span className="text-base font-black text-secondary">
                   {reportData.totalDistanceKm || 0} <span className="text-[10px] text-slate-500 font-medium">KM</span>
                 </span>
               </div>
-              <div className="p-3 bg-white rounded-xl border border-slate-100 shadow-xs">
+              <div className="p-3 bg-white rounded-xl border border-slate-200/60 shadow-2xs">
                 <span className="text-[10px] text-slate-400 font-bold block uppercase">Duración</span>
                 <span className="text-base font-black text-secondary">
                   {formatTime(reportData.durationSeconds || 0)}
                 </span>
               </div>
-              <div className="p-3 bg-white rounded-xl border border-slate-100 shadow-xs">
+              <div className="p-3 bg-white rounded-xl border border-slate-200/60 shadow-2xs">
                 <span className="text-[10px] text-slate-400 font-bold block uppercase">Vel. Media</span>
                 <span className="text-base font-black text-secondary">
                   {reportData.avgSpeedKmH || 0} <span className="text-[10px] text-slate-500 font-medium">KM/H</span>
                 </span>
               </div>
-              <div className="p-3 bg-white rounded-xl border border-slate-100 shadow-xs">
+              <div className="p-3 bg-white rounded-xl border border-slate-200/60 shadow-2xs">
                 <span className="text-[10px] text-slate-400 font-bold block uppercase">Vel. Máxima</span>
                 <span className="text-base font-black text-secondary">
                   {reportData.maxSpeedKmH || 0} <span className="text-[10px] text-slate-500 font-medium">KM/H</span>
@@ -1111,11 +1224,13 @@ export function LiveGpsTracker({ isOpen = true, onClose, isModal = false }) {
             </div>
 
             <div className="mt-4 pt-3 border-t border-slate-200">
-              <div className="flex items-center justify-between text-[11px] font-bold text-slate-600 mb-1.5">
-                <span>Distribución del Tráfico por Tiempo</span>
-                <span>
-                  🟢 {traffic.fluentPercent}% | 🟡 {traffic.moderatePercent}% | 🔴 {traffic.heavyPercent}%
-                </span>
+              <div className="flex items-center justify-between text-[11px] font-bold text-slate-600 mb-2">
+                <span>Segmentación de Tráfico por Tiempo</span>
+                <div className="flex items-center gap-2 text-[10px]">
+                  <span className="text-emerald-700 font-mono">🟢 {traffic.fluentPercent}%</span>
+                  <span className="text-amber-700 font-mono">🟡 {traffic.moderatePercent}%</span>
+                  <span className="text-rose-700 font-mono">🔴 {traffic.heavyPercent}%</span>
+                </div>
               </div>
               <div className="h-3 w-full bg-slate-200 rounded-full overflow-hidden flex shadow-inner">
                 <div 
@@ -1140,42 +1255,62 @@ export function LiveGpsTracker({ isOpen = true, onClose, isModal = false }) {
 
         {/* Captura Visual del Mapa y Trazo */}
         {routeSnapshot && (
-          <div className="mb-6">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-bold text-secondary flex items-center gap-1.5">
-                <MapPin size={14} className="text-primary" />
-                Captura Satelital del Trazo y Segmentos de Tráfico
+          <div className="mb-6 bg-slate-50/80 p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-xs">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs font-bold text-secondary flex items-center gap-2">
+                <MapPin size={15} className="text-primary" />
+                <span>Evidencia Satelital Cartográfica del Recorrido</span>
               </span>
-              <span className="text-[11px] text-slate-400 font-mono">
-                {reportData.pointsCount || 0} waypoints procesados
-              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsSnapshotLightboxOpen(true)}
+                  className="hidden sm:flex items-center gap-1 text-[11px] font-bold text-primary hover:text-btn-hover bg-primary/10 hover:bg-primary/20 px-2.5 py-1 rounded-lg border border-primary/20 transition-all cursor-pointer"
+                >
+                  <ZoomIn size={13} />
+                  <span>Ampliar Mapa</span>
+                </button>
+                <span className="text-[11px] text-slate-500 font-mono bg-white px-2.5 py-1 rounded-lg border border-slate-200/60">
+                  {reportData.pointsCount || 0} waypoints
+                </span>
+              </div>
             </div>
-            <div className="rounded-2xl overflow-hidden border border-slate-200 shadow-inner bg-[#161427] flex items-center justify-center max-h-[360px]">
+            <div 
+              onClick={() => setIsSnapshotLightboxOpen(true)}
+              className="group relative rounded-xl overflow-hidden border border-slate-200 shadow-sm bg-white flex items-center justify-center max-h-[460px] cursor-pointer"
+              title="Haz clic para ver el mapa en pantalla completa"
+            >
               <img 
                 src={routeSnapshot} 
                 alt="Mapa satelital de la ruta" 
-                className="w-full h-auto object-contain rounded-2xl"
+                className="w-full h-auto object-contain rounded-xl transition-transform duration-300 group-hover:scale-[1.01]"
               />
+              <div className="absolute inset-0 bg-slate-900/0 group-hover:bg-slate-900/20 transition-colors flex items-center justify-center">
+                <span className="opacity-0 group-hover:opacity-100 transition-opacity px-4 py-2 bg-secondary/90 text-white text-xs font-bold rounded-xl shadow-lg border border-white/20 flex items-center gap-1.5 backdrop-blur-sm">
+                  <Maximize2 size={14} className="text-accent" />
+                  <span>Toca para ampliar imagen</span>
+                </span>
+              </div>
             </div>
           </div>
         )}
 
-        {/* Dictamen Pericial de la IA */}
+        {/* Dictamen Pericial de QRide IA */}
         <div className="space-y-4 mb-6">
-          <div className="bg-primary/5 p-5 rounded-2xl border border-primary/20">
-            <h4 className="font-black text-secondary text-sm mb-1.5 flex items-center gap-2">
-              <Sparkles size={16} className="text-primary" />
-              Dictamen Ejecutivo del Perito IA
+          <div className="bg-primary/5 p-5 rounded-2xl border border-primary/20 shadow-xs">
+            <h4 className="font-black text-secondary text-sm mb-2 flex items-center gap-2">
+              <QrCode size={16} className="text-primary" />
+              <span>Dictamen Ejecutivo QRide IA</span>
             </h4>
             <p className="text-xs md:text-sm text-slate-700 leading-relaxed font-medium">
               {aiReport.executiveSummary || 'Recorrido evaluado con éxito bajo estándares de telemetría QRide.'}
             </p>
           </div>
 
-          <div className="bg-secondary/5 p-5 rounded-2xl border border-secondary/15">
-            <h4 className="font-bold text-secondary text-sm mb-1.5 flex items-center gap-2">
+          <div className="bg-secondary/5 p-5 rounded-2xl border border-secondary/15 shadow-xs">
+            <h4 className="font-bold text-secondary text-sm mb-2 flex items-center gap-2">
               <TrendingUp size={16} className="text-accent" />
-              Análisis de Congestión y Flujo Vial
+              <span>Análisis de Congestión y Flujo Vial</span>
             </h4>
             <p className="text-xs md:text-sm text-slate-600 leading-relaxed font-medium mb-3">
               {aiReport.trafficAnalysis || 'No se registraron cuellos de botella significativos.'}
@@ -1187,7 +1322,7 @@ export function LiveGpsTracker({ isOpen = true, onClose, isModal = false }) {
                   Puntos Críticos Detectados:
                 </span>
                 {aiReport.congestionHotspots.map((spot, idx) => (
-                  <div key={idx} className="flex items-start gap-2 text-xs text-slate-700 bg-white p-2.5 rounded-xl border border-slate-200/60">
+                  <div key={idx} className="flex items-start gap-2 text-xs text-slate-700 bg-white p-2.5 rounded-xl border border-slate-200/60 shadow-2xs">
                     <span className="w-2 h-2 rounded-full bg-rose-500 mt-1 shrink-0" />
                     <div>
                       <strong className="text-secondary font-bold">{spot.title}: </strong>
@@ -1202,17 +1337,17 @@ export function LiveGpsTracker({ isOpen = true, onClose, isModal = false }) {
 
         {/* Observaciones y Recomendaciones */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-          <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200/80">
+          <div className="bg-slate-50/80 p-5 rounded-2xl border border-slate-200/80 shadow-xs">
             <h4 className="font-bold text-secondary text-sm mb-3 flex items-center gap-2">
               <CheckCircle2 size={16} className="text-emerald-600" />
-              Observaciones de Conducción
+              <span>Observaciones de Conducción</span>
             </h4>
-            <ul className="space-y-2">
+            <ul className="space-y-2.5">
               {(aiReport.drivingObservations || [
                 `Velocidad máxima de ${reportData.maxSpeedKmH} km/h dentro de parámetros seguros.`,
                 'Conducción estable en tramos urbanos.'
               ]).map((obs, idx) => (
-                <li key={idx} className="text-xs text-slate-600 flex items-start gap-2">
+                <li key={idx} className="text-xs text-slate-600 flex items-start gap-2 leading-relaxed">
                   <span className="text-emerald-600 font-black">•</span>
                   <span>{obs}</span>
                 </li>
@@ -1220,17 +1355,17 @@ export function LiveGpsTracker({ isOpen = true, onClose, isModal = false }) {
             </ul>
           </div>
 
-          <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200/80">
+          <div className="bg-slate-50/80 p-5 rounded-2xl border border-slate-200/80 shadow-xs">
             <h4 className="font-bold text-secondary text-sm mb-3 flex items-center gap-2">
               <Zap size={16} className="text-primary" />
-              Recomendaciones de Optimización
+              <span>Recomendaciones de Optimización</span>
             </h4>
-            <ul className="space-y-2">
+            <ul className="space-y-2.5">
               {(aiReport.recommendations || [
                 'Considerar vías alternas en horas de alta congestión.',
                 'Mantener aceleraciones progresivas para conservar combustible.'
               ]).map((rec, idx) => (
-                <li key={idx} className="text-xs text-slate-600 flex items-start gap-2">
+                <li key={idx} className="text-xs text-slate-600 flex items-start gap-2 leading-relaxed">
                   <span className="text-primary font-black">•</span>
                   <span>{rec}</span>
                 </li>
@@ -1240,395 +1375,410 @@ export function LiveGpsTracker({ isOpen = true, onClose, isModal = false }) {
         </div>
 
         {/* Footer del Reporte */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-slate-200 text-xs text-slate-500 font-medium">
-          <div>
-            Consumo estimado de combustible: <strong className="text-secondary">{aiReport.estimatedFuelLiters || 0.45} L</strong>
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-5 border-t border-slate-200 text-xs text-slate-500 font-medium">
+          <div className="flex items-center gap-2">
+            <span>Consumo estimado de combustible:</span>
+            <strong className="text-secondary bg-slate-100 px-2 py-0.5 rounded-lg border border-slate-200/60 font-mono">
+              {aiReport.estimatedFuelLiters || 0.45} L
+            </strong>
           </div>
           <button
             onClick={handleResetToIdle}
-            className="w-full sm:w-auto px-6 py-2.5 bg-primary hover:bg-btn-hover text-white rounded-xl font-bold shadow-md shadow-primary/25 transition-all flex items-center justify-center gap-2 cursor-pointer"
+            className="w-full sm:w-auto px-6 py-2.5 bg-primary hover:bg-btn-hover text-white rounded-xl font-bold shadow-md shadow-primary/25 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95"
           >
             <Play size={15} />
             <span>Iniciar Nuevo Recorrido</span>
           </button>
         </div>
 
+        {/* Modal Lightbox para Ampliar Captura de Mapa en Alta Resolución */}
+        <AnimatePresence>
+          {isSnapshotLightboxOpen && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[10000] bg-black/95 backdrop-blur-md flex flex-col justify-between p-3 sm:p-6"
+              onClick={() => setIsSnapshotLightboxOpen(false)}
+            >
+              {/* Barra Superior de Lightbox */}
+              <div 
+                className="flex items-center justify-between text-white pb-3 border-b border-white/15" 
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-center gap-2.5">
+                  <div className="p-1.5 bg-primary/30 rounded-lg text-primary">
+                    <MapPin size={18} />
+                  </div>
+                  <div>
+                    <h4 className="font-black text-sm text-white">Evidencia Cartográfica de Ruta</h4>
+                    <p className="text-[10px] text-slate-400 font-medium">Captura satelital en alta resolución con calles y flujo de tráfico</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsSnapshotLightboxOpen(false)}
+                  className="p-2 bg-white/10 hover:bg-white/20 active:scale-90 rounded-xl text-white transition-all cursor-pointer"
+                  title="Cerrar vista ampliada"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              {/* Imagen Centrada y Ajustada a la Pantalla */}
+              <div 
+                className="flex-1 flex items-center justify-center p-2 sm:p-4 overflow-hidden" 
+                onClick={(e) => e.stopPropagation()}
+              >
+                <img
+                  src={routeSnapshot}
+                  alt="Mapa ampliado de la ruta"
+                  className="max-w-full max-h-[82vh] object-contain rounded-2xl shadow-2xl border border-white/10"
+                />
+              </div>
+
+              {/* Pie de Lightbox */}
+              <div 
+                className="text-center text-xs text-slate-400 pt-2 border-t border-white/10" 
+                onClick={(e) => e.stopPropagation()}
+              >
+                <span>Haz clic fuera de la imagen o en la cruz para volver al reporte</span>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
       </div>
     );
   }
 
   // ==========================================
-  // VISTA 5: RASTREO SATELITAL EN VIVO & MAPA (MOBILE-FRIENDLY CON WAZE/GOOGLE MAPS FOLLOW)
+  // VISTA 5: RASTREO SATELITAL EN VIVO — PANTALLA COMPLETA ESTILO WAZE/GOOGLE MAPS
   // ==========================================
   return (
-    <div className="bg-white/95 backdrop-blur-xl border border-white/60 p-4 sm:p-7 md:p-8 rounded-[2.25rem] shadow-xl text-slate-800">
-      
-      {/* Header del Tracker en Vivo */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3.5">
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 bg-primary/10 text-primary rounded-2xl shrink-0">
-            <Radio size={22} className="animate-pulse" />
-          </div>
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <h2 className="text-lg sm:text-2xl font-black text-secondary tracking-tight flex items-center gap-2">
-                Ruta GPS en Vivo
-                <span className="flex h-2.5 w-2.5 relative">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-primary"></span>
-                </span>
-              </h2>
+    <div className="fixed inset-0 z-[9999] flex flex-col bg-slate-900 text-white overflow-hidden">
+
+      {/* ── TOP APP BAR ─────────────────────────────────────────────────── */}
+      <div className="relative z-[500] flex-shrink-0 bg-secondary/95 backdrop-blur-md border-b border-white/10 px-3 pt-safe-top pb-2 shadow-xl">
+
+        {/* Fila 1: Título + Finalizar */}
+        <div className="flex items-center justify-between gap-2 mb-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="p-1.5 bg-primary/20 text-primary rounded-xl shrink-0">
+              <Radio size={18} className="animate-pulse" />
             </div>
-            <p className="text-[11px] sm:text-xs text-slate-500 font-medium truncate">
-              {currentPosition ? `Lat: ${currentPosition.lat.toFixed(5)}, Lng: ${currentPosition.lng.toFixed(5)} • ±${currentPosition.accuracy}m` : 'Conectando satélites GPS...'}
-            </p>
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5">
+                <span className="font-black text-sm text-white truncate">Ruta GPS en Vivo</span>
+                <span className="flex h-2 w-2 relative shrink-0">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-primary" />
+                </span>
+              </div>
+              <p className="text-[10px] text-slate-400 font-mono truncate">
+                {currentPosition
+                  ? `${currentPosition.lat.toFixed(4)}, ${currentPosition.lng.toFixed(4)} • ±${currentPosition.accuracy}m`
+                  : 'Conectando satélites...'}
+              </p>
+            </div>
           </div>
-        </div>
 
-        {/* Botón Finalizar Ruta */}
-        <div className="flex items-center gap-2 self-end sm:self-auto">
-          <button
-            onClick={handleFinishRoute}
-            className="flex items-center gap-2 px-4 sm:px-5 py-2.5 bg-primary hover:bg-btn-hover text-white rounded-xl shadow-lg shadow-primary/30 text-xs sm:text-sm font-black transition-all transform hover:scale-105 active:scale-95 cursor-pointer shrink-0"
-            title="Detener el viaje y generar reporte con IA"
-          >
-            <Square size={15} className="fill-white" />
-            <span>Finalizar Ruta</span>
-          </button>
+          <div className="flex items-center gap-1.5 shrink-0">
+            {/* Métricas compactas */}
+            <div className="hidden sm:flex items-center gap-1 bg-white/10 rounded-xl px-2.5 py-1.5 text-xs font-mono font-bold">
+              <Clock size={12} className="text-accent" />
+              <span>{formatTime(elapsedSeconds)}</span>
+            </div>
+            <div className="hidden sm:flex items-center gap-1 bg-white/10 rounded-xl px-2.5 py-1.5 text-xs font-mono font-bold">
+              <Navigation size={12} className="text-emerald-400" />
+              <span>{totalDistanceKm.toFixed(2)} km</span>
+            </div>
 
-          {isModal && onClose && (
-            <button 
-              onClick={onClose}
-              className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-full transition-colors ml-1"
-              title="Cerrar"
+            <button
+              onClick={handleFinishRoute}
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-primary hover:bg-btn-hover text-white rounded-xl shadow-lg shadow-primary/40 text-xs font-black transition-all active:scale-95 cursor-pointer"
             >
-              <X size={20} />
+              <Square size={13} className="fill-white" />
+              <span>Finalizar</span>
             </button>
-          )}
-        </div>
-      </div>
 
-      {/* BARRA DE BÚSQUEDA FLOTANTE ADAPTADA A MÓVIL (Con Sugerencias en Vivo Autocomplete) */}
-      <div className="relative mb-3 z-30">
-        <div className="relative flex items-center">
-          <input
-            type="text"
-            placeholder="Buscar destino (ej. Reforma, Centro, Hospital, Plaza...)"
-            value={searchQuery}
-            onChange={(e) => handleSearchInputChange(e.target.value)}
-            className="w-full bg-slate-100 hover:bg-slate-50 focus:bg-white text-slate-900 text-xs font-bold pl-10 pr-20 py-2.5 sm:py-3 rounded-2xl border border-slate-200/80 shadow-xs outline-none focus:ring-2 focus:ring-primary/40 placeholder-slate-400 transition-all"
-          />
-          <Search size={16} className="absolute left-3.5 text-slate-400 pointer-events-none" />
-
-          <div className="absolute right-2.5 flex items-center gap-1.5">
-            {isSearching && (
-              <span className="w-3.5 h-3.5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-            )}
-            {searchQuery && (
-              <button 
-                onClick={handleClearDestination} 
-                className="p-1 text-slate-400 hover:text-slate-700 rounded-lg transition-colors cursor-pointer"
-                title="Limpiar búsqueda"
+            {isModal && onClose && (
+              <button
+                onClick={onClose}
+                className="p-2 text-slate-400 hover:text-white hover:bg-white/10 rounded-xl transition-colors"
               >
-                <X size={15} />
+                <X size={18} />
               </button>
             )}
           </div>
         </div>
 
-        {/* Dropdown de Sugerencias en Tiempo Real */}
-        <AnimatePresence>
-          {searchResults.length > 0 && (
-            <motion.div
-              initial={{ opacity: 0, y: -6 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -6 }}
-              className="absolute left-0 right-0 top-full mt-1.5 bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden z-50 divide-y divide-slate-100 max-h-60 overflow-y-auto"
-            >
-              {searchResults.map((place) => (
+        {/* Fila 2: Barra de Búsqueda de Destino */}
+        <div className="relative z-[600]">
+          <div className="relative flex items-center">
+            <input
+              type="text"
+              placeholder="Buscar destino..."
+              value={searchQuery}
+              onChange={(e) => handleSearchInputChange(e.target.value)}
+              className="w-full bg-white/10 hover:bg-white/15 focus:bg-white/20 text-white text-sm font-semibold pl-9 pr-16 py-2.5 rounded-2xl border border-white/15 outline-none focus:ring-2 focus:ring-primary/60 placeholder-slate-400 transition-all"
+            />
+            <Search size={15} className="absolute left-3 text-slate-400 pointer-events-none" />
+
+            <div className="absolute right-2.5 flex items-center gap-1.5">
+              {isSearching && (
+                <span className="w-3.5 h-3.5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+              )}
+              {searchQuery && (
                 <button
-                  key={place.id}
-                  onClick={() => handleSelectDestination(place)}
-                  className="w-full text-left p-3 hover:bg-slate-50 transition-colors flex items-start gap-2.5 cursor-pointer"
+                  onClick={handleClearDestination}
+                  className="p-1 text-slate-400 hover:text-white rounded-lg transition-colors cursor-pointer"
                 >
-                  <div className="p-1.5 bg-primary/10 text-primary rounded-xl shrink-0 mt-0.5">
-                    <MapPin size={15} />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <span className="font-bold text-xs text-secondary block truncate">{place.name}</span>
-                    <span className="text-[11px] text-slate-500 block truncate">{place.fullName}</span>
-                  </div>
-                  <ChevronRight size={15} className="text-slate-300 shrink-0 mt-1" />
+                  <X size={14} />
                 </button>
-              ))}
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
+              )}
+            </div>
+          </div>
 
-      {/* Selector de Capa de Mapa y Leyenda de Colores de Tráfico */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 mb-3 text-xs">
-        
-        {/* Leyenda de Colores de Tráfico */}
-        <div className="flex items-center gap-3 bg-slate-100/90 px-3 py-1.5 rounded-xl border border-slate-200/60 font-semibold text-[11px] text-slate-600 overflow-x-auto">
-          <span className="text-slate-400 font-bold uppercase text-[10px]">Tráfico:</span>
-          <div className="flex items-center gap-1.5 shrink-0">
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
-            <span>Fluido (&gt;35 km/h)</span>
-          </div>
-          <div className="flex items-center gap-1.5 shrink-0">
-            <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
-            <span>Moderado (12-35)</span>
-          </div>
-          <div className="flex items-center gap-1.5 shrink-0">
-            <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse" />
-            <span>Pesado (&lt;12)</span>
-          </div>
+          {/* Dropdown de Sugerencias */}
+          <AnimatePresence>
+            {searchResults.length > 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: -6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                className="absolute left-0 right-0 top-full mt-1.5 bg-slate-800 rounded-2xl shadow-2xl border border-white/10 overflow-hidden z-[700] divide-y divide-white/5 max-h-56 overflow-y-auto"
+              >
+                {searchResults.map((place) => (
+                  <button
+                    key={place.id}
+                    onClick={() => handleSelectDestination(place)}
+                    className="w-full text-left p-3 hover:bg-white/10 transition-colors flex items-start gap-2.5 cursor-pointer"
+                  >
+                    <div className="p-1.5 bg-primary/20 text-primary rounded-xl shrink-0 mt-0.5">
+                      <MapPin size={14} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <span className="font-bold text-xs text-white block truncate">{place.name}</span>
+                      <span className="text-[11px] text-slate-400 block truncate">{place.fullName}</span>
+                    </div>
+                    <ChevronRight size={14} className="text-slate-500 shrink-0 mt-1" />
+                  </button>
+                ))}
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
 
-        {/* Selector de Proveedor de Mapa */}
-        <div className="flex items-center gap-1 bg-slate-100/90 p-1 rounded-xl self-stretch sm:self-auto border border-slate-200/60">
-          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-2 flex items-center gap-1 shrink-0">
-            <Layers size={13} />
-            <span className="hidden sm:inline">Capa:</span>
-          </span>
-          <div className="grid grid-cols-3 gap-1 flex-1 sm:flex-initial">
-            <button
-              type="button"
-              onClick={() => setMapProvider('googleRoads')}
-              className={`px-2 py-1 rounded-lg text-xs font-bold transition-all text-center ${
-                mapProvider === 'googleRoads' ? 'bg-white text-secondary shadow-xs' : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              Calles
-            </button>
-            <button
-              type="button"
-              onClick={() => setMapProvider('googleSatellite')}
-              className={`px-2 py-1 rounded-lg text-xs font-bold transition-all text-center ${
-                mapProvider === 'googleSatellite' ? 'bg-white text-secondary shadow-xs' : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              Satélite
-            </button>
-            <button
-              type="button"
-              onClick={() => setMapProvider('cartoDark')}
-              className={`px-2 py-1 rounded-lg text-xs font-bold transition-all text-center ${
-                mapProvider === 'cartoDark' ? 'bg-white text-secondary shadow-xs' : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              Oscuro
-            </button>
+        {/* Fila 3: Selector de capa + Leyenda (compacta en móvil) */}
+        <div className="flex items-center justify-between gap-2 mt-2">
+          {/* Leyenda tráfico compacta */}
+          <div className="flex items-center gap-2 text-[10px] font-semibold text-slate-400 overflow-x-auto">
+            <div className="flex items-center gap-1 shrink-0">
+              <span className="w-2 h-2 rounded-full bg-emerald-500" />
+              <span className="text-slate-300">Fluido</span>
+            </div>
+            <div className="flex items-center gap-1 shrink-0">
+              <span className="w-2 h-2 rounded-full bg-amber-500" />
+              <span className="text-slate-300">Moderado</span>
+            </div>
+            <div className="flex items-center gap-1 shrink-0">
+              <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
+              <span className="text-slate-300">Pesado</span>
+            </div>
+          </div>
+
+          {/* Selector de capa */}
+          <div className="flex items-center gap-0.5 bg-white/10 p-0.5 rounded-xl shrink-0">
+            {[
+              { key: 'googleRoads', label: 'Calles' },
+              { key: 'googleSatellite', label: 'Sat.' },
+              { key: 'cartoDark', label: 'Oscuro' }
+            ].map(({ key, label }) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setMapProvider(key)}
+                className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition-all ${
+                  mapProvider === key ? 'bg-primary text-white shadow-sm' : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
           </div>
         </div>
       </div>
 
-      {/* CONTENEDOR DEL MAPA REAL LEAFLET (MODO WAZE / GOOGLE MAPS) */}
-      <div className="relative w-full h-[380px] sm:h-[440px] md:h-[500px] rounded-[1.75rem] overflow-hidden border border-slate-200 shadow-inner z-0">
-        
-        {/* DOM del Mapa */}
+      {/* ── MAPA FULLSCREEN ─────────────────────────────────────────────── */}
+      <div className="relative flex-1 overflow-hidden z-0">
+
+        {/* DOM del Mapa Leaflet */}
         <div ref={mapContainerRef} className="w-full h-full z-0" />
 
-        {/* BANNER SUPERIOR DE NAVEGACIÓN ACTIVA (ESTILO WAZE / GOOGLE MAPS) */}
+        {/* BANNER SUPERIOR DE NAVEGACIÓN ACTIVA */}
         <AnimatePresence>
           {isNavigating && destination && (
             <motion.div
               initial={{ opacity: 0, y: -20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
-              className="absolute top-3 left-3 right-3 z-[400] bg-secondary/95 backdrop-blur-md p-3 sm:p-4 rounded-2xl border border-white/20 text-white shadow-2xl flex items-center justify-between gap-3"
+              className="absolute top-3 left-3 right-3 z-[400] bg-secondary/95 backdrop-blur-md p-3 rounded-2xl border border-white/20 text-white shadow-2xl flex items-center justify-between gap-3"
             >
-              <div className="flex items-center gap-3 min-w-0">
+              <div className="flex items-center gap-2.5 min-w-0">
                 <div className="p-2.5 bg-emerald-500 text-white rounded-xl shadow-md shrink-0">
-                  <Navigation size={22} className="animate-pulse" />
+                  <Navigation size={20} className="animate-pulse" />
                 </div>
                 <div className="min-w-0">
-                  <span className="text-[10px] uppercase font-black tracking-wider text-emerald-400 block truncate">
-                    Navegando hacia:
-                  </span>
-                  <strong className="text-xs sm:text-sm font-bold text-white block truncate">
-                    {destination.name}
-                  </strong>
+                  <span className="text-[10px] uppercase font-black tracking-wider text-emerald-400 block">Navegando:</span>
+                  <strong className="text-xs font-bold text-white block truncate">{destination.name}</strong>
                   {plannedRouteInfo && (
-                    <span className="text-[11px] text-slate-300 font-mono block">
-                      ~{plannedRouteInfo.distanceKm} km • ETA: {plannedRouteInfo.durationMinutes} min
+                    <span className="text-[10px] text-slate-300 font-mono block">
+                      ~{plannedRouteInfo.distanceKm} km • ETA {plannedRouteInfo.durationMinutes} min
                     </span>
                   )}
                 </div>
               </div>
-
               <div className="flex items-center gap-1.5 shrink-0">
                 <button
                   onClick={handleOpenTurnByTurnGoogleMaps}
-                  className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-xs transition-all flex items-center gap-1"
-                  title="Abrir en Google Maps"
+                  className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold flex items-center gap-1 cursor-pointer"
                 >
-                  <ExternalLink size={13} />
-                  <span className="hidden sm:inline">Google Maps</span>
+                  <ExternalLink size={12} />
+                  <span className="hidden sm:inline">Maps</span>
                 </button>
                 <button
                   onClick={handleClearDestination}
-                  className="p-1.5 bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white rounded-xl transition-all"
-                  title="Detener navegación"
+                  className="p-1.5 bg-white/10 hover:bg-white/20 rounded-xl transition-all"
                 >
-                  <X size={15} />
+                  <X size={14} />
                 </button>
               </div>
             </motion.div>
           )}
         </AnimatePresence>
 
-        {/* HUD Superior Izquierdo: Velocímetro (Oculto o compacto si está en modo navegación) */}
-        {!isNavigating && (
-          <div className="absolute top-4 left-4 z-[400] flex items-center gap-2 pointer-events-none">
-            <div className="bg-secondary/90 backdrop-blur-md px-3.5 py-2 rounded-2xl border border-white/10 text-white flex items-center gap-2 shadow-xl pointer-events-auto">
-              <Gauge size={16} className={currentPosition?.speed > 35 ? 'text-emerald-400' : (currentPosition?.speed > 12 ? 'text-amber-400' : 'text-rose-400')} />
-              <span className="text-sm font-extrabold font-mono tracking-tight">
-                {currentPosition?.speed || 0} <span className="text-[10px] text-slate-300">KM/H</span>
-              </span>
-            </div>
-            <div className="bg-secondary/90 backdrop-blur-md px-3.5 py-2 rounded-2xl border border-white/10 text-white flex items-center gap-2 shadow-xl pointer-events-auto hidden sm:flex">
-              <Compass size={16} className="text-accent" />
-              <span className="text-sm font-extrabold font-mono tracking-tight">
-                {currentPosition?.heading || 0}° <span className="text-[10px] text-slate-300">RUMBO</span>
-              </span>
-            </div>
+        {/* HUD Velocímetro — esquina superior izquierda */}
+        <div className="absolute top-4 left-4 z-[400] flex flex-col gap-1.5">
+          <div className="bg-secondary/90 backdrop-blur-md px-3.5 py-2.5 rounded-2xl border border-white/10 text-white flex items-center gap-2 shadow-xl">
+            <Gauge
+              size={18}
+              className={
+                (currentPosition?.speed ?? 0) > 35 ? 'text-emerald-400' :
+                (currentPosition?.speed ?? 0) > 12 ? 'text-amber-400' : 'text-rose-400'
+              }
+            />
+            <span className="text-lg font-black font-mono tracking-tight leading-none">
+              {currentPosition?.speed || 0}
+              <span className="text-[10px] text-slate-300 font-normal ml-0.5">km/h</span>
+            </span>
           </div>
-        )}
-
-        {/* HUD Superior Derecho: Distancia y Tiempo de Viaje */}
-        {!isNavigating && (
-          <div className="absolute top-4 right-4 z-[400] flex items-center gap-2 pointer-events-none justify-end">
-            <div className="bg-secondary/90 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/10 text-white flex items-center gap-1.5 shadow-lg pointer-events-auto">
-              <Clock size={14} className="text-accent" />
-              <span className="text-xs font-bold font-mono">{formatTime(elapsedSeconds)}</span>
-            </div>
-            <div className="bg-secondary/90 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/10 text-white flex items-center gap-1.5 shadow-lg pointer-events-auto">
-              <Navigation size={14} className="text-emerald-400" />
-              <span className="text-xs font-bold font-mono">{totalDistanceKm.toFixed(2)} KM</span>
-            </div>
+          <div className="bg-secondary/90 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/10 text-white flex items-center gap-1.5 shadow-lg text-xs font-mono font-bold">
+            <Clock size={12} className="text-accent" />
+            <span>{formatTime(elapsedSeconds)}</span>
           </div>
-        )}
+          <div className="bg-secondary/90 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/10 text-white flex items-center gap-1.5 shadow-lg text-xs font-mono font-bold">
+            <Navigation size={12} className="text-emerald-400" />
+            <span>{totalDistanceKm.toFixed(2)} km</span>
+          </div>
+        </div>
 
-        {/* BOTÓN FLOTANTE "RECENTRAR" (ESTILO GOOGLE MAPS / WAZE) */}
+        {/* HUD Rumbo — esquina superior derecha */}
+        <div className="absolute top-4 right-4 z-[400]">
+          <div className="bg-secondary/90 backdrop-blur-md px-3 py-2.5 rounded-2xl border border-white/10 text-white flex items-center gap-2 shadow-xl">
+            <Compass size={16} className="text-accent" />
+            <span className="text-sm font-extrabold font-mono tracking-tight">
+              {currentPosition?.heading || 0}°
+            </span>
+          </div>
+        </div>
+
+        {/* BOTÓN RECENTRAR FLOTANTE */}
         {!followVehicle && currentPosition && (
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="absolute bottom-16 sm:bottom-4 left-1/2 -translate-x-1/2 z-[400]"
+            className="absolute bottom-20 left-1/2 -translate-x-1/2 z-[400]"
           >
             <button
               onClick={handleRecenterVehicle}
-              className="px-4 py-2 bg-primary hover:bg-btn-hover text-white text-xs font-extrabold rounded-2xl shadow-2xl flex items-center gap-2 border border-white/20 transition-all transform hover:scale-105 active:scale-95 cursor-pointer"
+              className="px-4 py-2.5 bg-primary hover:bg-btn-hover text-white text-xs font-extrabold rounded-2xl shadow-2xl flex items-center gap-2 border border-white/20 transition-all hover:scale-105 active:scale-95 cursor-pointer"
             >
               <LocateFixed size={15} className="animate-spin" />
-              <span>Recentrar Vehículo</span>
+              <span>Recentrar</span>
             </button>
           </motion.div>
         )}
 
-        {/* TARJETA DE CONFIRMACIÓN DE RUTA (CUANDO SE SELECCIONA DESTINO PERO AÚN NO SE CONFIRMA) */}
+        {/* TARJETA CONFIRMACIÓN DE RUTA */}
         <AnimatePresence>
           {destination && !isNavigating && (
             <motion.div
               initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 30 }}
-              className="absolute bottom-4 left-4 right-4 z-[400] bg-secondary/95 backdrop-blur-md p-4 rounded-2xl border border-white/20 text-white shadow-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 max-w-xl mx-auto"
+              className="absolute bottom-4 left-3 right-3 z-[400] bg-secondary/97 backdrop-blur-md p-4 rounded-2xl border border-white/20 text-white shadow-2xl"
             >
-              <div className="flex items-center gap-3 min-w-0">
+              <div className="flex items-start gap-3 mb-3">
                 <div className="p-2.5 bg-primary text-white rounded-xl shrink-0">
-                  <Flag size={20} />
+                  <Flag size={18} />
                 </div>
-                <div className="min-w-0">
-                  <span className="text-[10px] text-accent font-extrabold uppercase block tracking-wider">
-                    Ruta Sugerida
-                  </span>
-                  <strong className="text-xs sm:text-sm font-bold text-white block truncate">{destination.name}</strong>
+                <div className="min-w-0 flex-1">
+                  <span className="text-[10px] text-accent font-extrabold uppercase tracking-wider block">Ruta Sugerida</span>
+                  <strong className="text-sm font-bold text-white block truncate">{destination.name}</strong>
                   {plannedRouteInfo && (
                     <span className="text-[11px] text-slate-300 font-mono block">
-                      Distancia: {plannedRouteInfo.distanceKm} km • Aprox. {plannedRouteInfo.durationMinutes} min
+                      {plannedRouteInfo.distanceKm} km • Aprox. {plannedRouteInfo.durationMinutes} min
                     </span>
                   )}
                 </div>
-              </div>
-
-              {/* Botón de Confirmación para hacer zoom y seguir ruta como Waze */}
-              <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
-                <button
-                  onClick={handleConfirmStartNavigation}
-                  className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-extrabold shadow-lg shadow-emerald-600/30 transition-all transform hover:scale-[1.02] active:scale-95 cursor-pointer"
-                >
-                  <Navigation size={14} />
-                  <span>Seguir Ruta</span>
-                  <ArrowRight size={14} />
-                </button>
                 <button
                   onClick={handleClearDestination}
-                  className="p-2.5 bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white rounded-xl transition-all"
-                  title="Cancelar ruta"
+                  className="p-2 bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white rounded-xl transition-all shrink-0"
                 >
                   <X size={15} />
                 </button>
               </div>
+
+              <button
+                onClick={handleConfirmStartNavigation}
+                className="w-full flex items-center justify-center gap-2.5 px-4 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-sm font-extrabold shadow-lg shadow-emerald-600/40 transition-all hover:scale-[1.02] active:scale-95 cursor-pointer"
+              >
+                <Navigation size={16} />
+                <span>Confirmar y Seguir Ruta</span>
+                <ArrowRight size={16} />
+              </button>
             </motion.div>
           )}
         </AnimatePresence>
 
-        {/* HUD Inferior Izquierdo: Puntos registrados */}
-        <div className="absolute bottom-4 left-4 z-[400] flex items-center gap-2 pointer-events-none">
-          <div className="bg-secondary/90 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/10 text-white flex items-center gap-1.5 shadow-lg pointer-events-auto text-[11px] font-mono">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-            <span>{routePoints.length} Waypoints</span>
+        {/* HUD Inferior — waypoints + botones acción */}
+        {(!destination || isNavigating) && (
+          <div className="absolute bottom-4 left-3 right-3 z-[400] flex items-center justify-between gap-2">
+            <div className="bg-secondary/90 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/10 text-white flex items-center gap-1.5 shadow-lg text-[11px] font-mono">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+              <span>{routePoints.length} Waypoints</span>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleRecenterVehicle}
+                className="p-2.5 bg-secondary/90 hover:bg-secondary text-white rounded-xl shadow-xl border border-white/15 backdrop-blur-md transition-all hover:scale-105 active:scale-95 cursor-pointer"
+                title="Centrar en mi posición"
+              >
+                <Crosshair size={16} className="text-accent" />
+              </button>
+
+              <button
+                onClick={handleOpenGoogleMaps}
+                className="flex items-center gap-1.5 px-3 py-2.5 bg-secondary/90 hover:bg-secondary text-white rounded-xl shadow-xl border border-white/15 backdrop-blur-md text-xs font-bold transition-all hover:scale-105 active:scale-95 cursor-pointer"
+              >
+                <ExternalLink size={14} className="text-emerald-400" />
+                <span className="hidden sm:inline">Google Maps</span>
+              </button>
+            </div>
           </div>
-        </div>
-
-        {/* HUD Inferior Derecho: Acciones rápidas (Google Maps y Centrar) */}
-        <div className="absolute bottom-4 right-4 z-[400] flex items-center gap-2">
-          <button
-            onClick={handleRecenterVehicle}
-            className="p-2.5 bg-secondary/90 hover:bg-secondary text-white rounded-xl shadow-xl border border-white/15 backdrop-blur-md transition-all hover:scale-105 active:scale-95 cursor-pointer"
-            title="Centrar en mi vehículo"
-          >
-            <Crosshair size={16} className="text-accent" />
-          </button>
-
-          <button
-            onClick={handleOpenGoogleMaps}
-            className="flex items-center gap-1.5 px-3 py-2 bg-secondary/90 hover:bg-secondary text-white rounded-xl shadow-xl border border-white/15 backdrop-blur-md text-xs font-bold transition-all hover:scale-105 active:scale-95 cursor-pointer"
-            title="Abrir punto en Google Maps"
-          >
-            <ExternalLink size={14} className="text-emerald-400" />
-            <span className="hidden sm:inline">Google Maps</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Métricas Inferiores en Tiempo Real */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3 mt-4">
-        <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100">
-          <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-0.5">Distancia Recorrida</p>
-          <p className="text-sm font-black text-secondary">{totalDistanceKm.toFixed(2)} km</p>
-        </div>
-        <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100">
-          <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-0.5">Tiempo en Ruta</p>
-          <p className="text-sm font-black text-primary">{formatTime(elapsedSeconds)}</p>
-        </div>
-        <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100">
-          <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-0.5">Velocidad Máxima</p>
-          <p className="text-sm font-black text-accent">{maxSpeedKmH} km/h</p>
-        </div>
-        <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100">
-          <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-0.5">Estado de Tráfico</p>
-          <p className={`text-sm font-black ${
-            currentPosition?.trafficLevel === 'fluent' ? 'text-emerald-600' :
-            currentPosition?.trafficLevel === 'moderate' ? 'text-amber-600' : 'text-rose-600'
-          }`}>
-            {currentPosition?.trafficLevel === 'fluent' ? 'Fluido' :
-             currentPosition?.trafficLevel === 'moderate' ? 'Moderado' : 'Pesado / Alto'}
-          </p>
-        </div>
+        )}
       </div>
 
     </div>

@@ -16,7 +16,8 @@ import {
   RotateCw,
   FileText,
   Zap,
-  HelpCircle
+  HelpCircle,
+  X
 } from 'lucide-react';
 import { 
   inspectHelmetWithGeminiAI, 
@@ -25,7 +26,7 @@ import {
 } from '../../utils/helmetAiService';
 import { proximityAudio } from '../../utils/proximityAudio';
 
-export function HelmetSafetyCheckView() {
+export function HelmetSafetyCheckView({ onCameraActiveChange }) {
   const [streamActive, setStreamActive] = useState(false);
   const [cameraFacing, setCameraFacing] = useState('environment'); // 'user' | 'environment'
   const [cameraError, setCameraError] = useState(null);
@@ -33,6 +34,21 @@ export function HelmetSafetyCheckView() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [scanStep, setScanStep] = useState('');
   const [scanProgress, setScanProgress] = useState(0);
+
+  // Notificar al contenedor principal cuando la cámara se activa o desactiva (para ocultar navbar en móvil)
+  useEffect(() => {
+    if (onCameraActiveChange) {
+      onCameraActiveChange(streamActive);
+    }
+  }, [streamActive, onCameraActiveChange]);
+
+  useEffect(() => {
+    return () => {
+      if (onCameraActiveChange) {
+        onCameraActiveChange(false);
+      }
+    };
+  }, [onCameraActiveChange]);
 
   // Clave de API de Gemini y modales
   const [apiKey, setApiKey] = useState(() => getGeminiApiKey());
@@ -82,9 +98,9 @@ export function HelmetSafetyCheckView() {
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         videoRef.current.onloadedmetadata = () => {
-          videoRef.current.play().catch(e => console.warn('Play metadata error:', e));
+          videoRef.current?.play().catch(e => console.warn('Play metadata error:', e));
         };
-        videoRef.current.play().catch(e => console.warn('Direct play error:', e));
+        videoRef.current?.play().catch(e => console.warn('Direct play error:', e));
       }
       proximityAudio.playArmTone();
     } catch (err) {
@@ -265,8 +281,40 @@ export function HelmetSafetyCheckView() {
       {/* Visor de Cámara y HUD de Escaneo */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         <div className="lg:col-span-12 space-y-4">
-          <div className="relative w-full aspect-video md:aspect-[21/9] max-h-[460px] bg-slate-950 rounded-3xl overflow-hidden border border-slate-800 shadow-2xl flex items-center justify-center">
+          <div className={`${
+            streamActive 
+              ? 'fixed inset-0 z-[9999] bg-black flex flex-col justify-between overflow-hidden md:relative md:inset-auto md:z-auto md:w-full md:aspect-video md:aspect-[21/9] md:max-h-[460px] md:rounded-3xl md:border md:border-slate-800 md:shadow-2xl' 
+              : 'relative w-full aspect-video md:aspect-[21/9] max-h-[460px] bg-slate-950 rounded-3xl overflow-hidden border border-slate-800 shadow-2xl flex items-center justify-center'
+          }`}>
             
+            {/* Header Flotante en Móvil cuando la cámara está activa */}
+            {streamActive && (
+              <div className="flex md:hidden items-center justify-between p-4 z-40 bg-gradient-to-b from-black/80 to-transparent">
+                <div className="flex items-center gap-2">
+                  <div className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse" />
+                  <span className="text-white font-bold text-xs">Escáner Pericial en Vivo</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={toggleCameraFacing}
+                    className="p-2.5 bg-white/10 hover:bg-white/20 active:scale-95 text-white rounded-xl backdrop-blur-md"
+                    title="Rotar cámara"
+                  >
+                    <RotateCw size={18} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={stopCamera}
+                    className="p-2.5 bg-white/10 hover:bg-white/20 active:scale-95 text-white rounded-xl backdrop-blur-md"
+                    title="Cerrar cámara"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* 1. Video en Vivo */}
             <video
               ref={videoRef}
@@ -314,7 +362,7 @@ export function HelmetSafetyCheckView() {
 
             {/* 4. Overlay de Escaneo AR y Rayo Láser */}
             {(streamActive || isAnalyzing) && (
-              <div className="absolute inset-0 pointer-events-none flex flex-col justify-between p-4">
+              <div className="absolute inset-0 pointer-events-none flex flex-col justify-between p-4 pt-16 md:pt-4 pb-28 md:pb-4">
                 <div className="relative w-full h-full border-2 border-dashed border-cyan-400/40 rounded-2xl flex items-center justify-center">
                   <div className="absolute top-2 left-2 w-5 h-5 border-t-2 border-l-2 border-cyan-400" />
                   <div className="absolute top-2 right-2 w-5 h-5 border-t-2 border-r-2 border-cyan-400" />
@@ -322,9 +370,9 @@ export function HelmetSafetyCheckView() {
                   <div className="absolute bottom-2 right-2 w-5 h-5 border-b-2 border-r-2 border-cyan-400" />
 
                   {/* Silueta guía */}
-                  <div className="w-56 h-56 rounded-full border border-cyan-400/25 flex flex-col items-center justify-center text-[10px] text-cyan-300 font-mono text-center p-4">
+                  <div className="w-64 h-64 sm:w-72 sm:h-72 rounded-full border border-cyan-400/30 flex flex-col items-center justify-center text-[11px] text-cyan-300 font-mono text-center p-4 bg-cyan-950/20 backdrop-blur-2xs">
                     <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-ping mb-2" />
-                    Encuadra el casco completo o el sello de certificación (DOT/ECE/NOM)
+                    Encuadra el casco completo o el sello de certificación (DOT / ECE / NOM-206)
                   </div>
 
                   {/* Línea Láser de Escaneo con IA */}
@@ -340,16 +388,50 @@ export function HelmetSafetyCheckView() {
 
                 <div className="flex items-center justify-between text-[11px] font-mono text-white bg-slate-900/80 backdrop-blur-md px-3 py-1.5 rounded-xl border border-slate-700 mt-2">
                   <span className="flex items-center gap-1.5 text-cyan-400 font-bold">
-                    <Sparkles size={14} className="text-indigo-400" /> GEMINI VISION AI MULTIMODAL
+                    <Sparkles size={14} className="text-indigo-400" /> PERITAJE VISION IA
                   </span>
                   <span>{cameraFacing === 'environment' ? 'Lente Trasero' : 'Lente Frontal'}</span>
                 </div>
               </div>
             )}
 
+            {/* Controles Flotantes Inferiores en Móvil cuando la cámara está activa */}
+            {streamActive && (
+              <div className="flex md:hidden items-center justify-around p-5 z-40 bg-gradient-to-t from-black/95 via-black/80 to-transparent">
+                <button
+                  type="button"
+                  onClick={stopCamera}
+                  className="px-4 py-2.5 bg-white/10 active:scale-95 text-slate-300 font-bold text-xs rounded-xl"
+                >
+                  Cancelar
+                </button>
+
+                {/* Botón Shutter Principal en Móvil */}
+                <button
+                  type="button"
+                  onClick={capturePhoto}
+                  disabled={isAnalyzing}
+                  className="group relative w-18 h-18 rounded-full bg-gradient-to-tr from-cyan-500 to-indigo-600 p-1 flex items-center justify-center shadow-xl shadow-cyan-500/40 active:scale-90 transition-transform"
+                >
+                  <div className="w-full h-full rounded-full border-2 border-white/80 flex items-center justify-center">
+                    <Camera size={26} className="text-white" />
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={toggleCameraFacing}
+                  className="p-3 bg-white/10 active:scale-95 text-white rounded-xl"
+                  title="Cambiar cámara"
+                >
+                  <RotateCw size={20} />
+                </button>
+              </div>
+            )}
+
             {/* Barra de Progreso del Análisis */}
             {isAnalyzing && (
-              <div className="absolute bottom-0 left-0 right-0 bg-slate-950/90 backdrop-blur-md p-4 border-t border-slate-800 text-center">
+              <div className="absolute bottom-0 left-0 right-0 bg-slate-950/90 backdrop-blur-md p-4 border-t border-slate-800 text-center z-50">
                 <p className="text-xs font-bold text-cyan-300 mb-2 flex items-center justify-center gap-2">
                   <Sparkles size={14} className="animate-spin text-indigo-400" />
                   {scanStep}
@@ -375,7 +457,7 @@ export function HelmetSafetyCheckView() {
 
           {/* Controles del Escáner (solo activos durante transmisión o tras finalizar escaneo) */}
           {(streamActive || report) && (
-            <div className="flex items-center justify-between gap-2 flex-wrap bg-white p-3 rounded-2xl border border-slate-200">
+            <div className={`${streamActive ? 'hidden md:flex' : 'flex'} items-center justify-between gap-2 flex-wrap bg-white p-3 rounded-2xl border border-slate-200`}>
               <div className="flex items-center gap-2">
                 {streamActive ? (
                   <>
