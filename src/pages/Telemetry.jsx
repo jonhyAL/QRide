@@ -4,7 +4,6 @@ import { supabase } from '../lib/supabase';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { 
   Radio, 
-  AlertOctagon, 
   ShieldCheck, 
   Camera, 
   Eye, 
@@ -17,7 +16,6 @@ import {
 import { Sidebar } from '../components/layout/Sidebar';
 import { MobileNav } from '../components/layout/MobileNav';
 import { LiveGpsTracker } from '../components/dashboard/LiveGpsTracker';
-import { CrashDetectionView } from '../components/telemetry/CrashDetectionView';
 import { GeofencingView } from '../components/telemetry/GeofencingView';
 import { HelmetSafetyCheckView } from '../components/telemetry/HelmetSafetyCheckView';
 import { ProximityAlertView } from '../components/telemetry/ProximityAlertView';
@@ -28,7 +26,10 @@ export default function Telemetry() {
   const navigate = useNavigate();
   const location = useLocation();
   const [user, setUser] = useState(null);
-  const [activeTab, setActiveTab] = useState(location.state?.tab || 'gps');
+  const [activeTab, setActiveTab] = useState(() => {
+    const requested = location.state?.tab;
+    return requested && requested !== 'crash' ? requested : 'gps';
+  });
   const [isVehiclesModalOpen, setIsVehiclesModalOpen] = useState(false);
   const [isDocumentsModalOpen, setIsDocumentsModalOpen] = useState(false);
   const activeModal = isVehiclesModalOpen ? 'vehicles' : isDocumentsModalOpen ? 'documents' : null;
@@ -59,10 +60,9 @@ export default function Telemetry() {
 
   const tabs = [
     { id: 'gps', label: '1. GPS en Vivo', icon: Radio, badge: 'Satelital 1 Hz' },
-    { id: 'crash', label: '2. Caídas SOS', icon: AlertOctagon, badge: 'Sensor Fusion' },
-    { id: 'geofence', label: '3. Geocercas', icon: ShieldCheck, badge: 'Zonas Seguras' },
-    { id: 'helmet', label: '4. Casco IA', icon: Camera, badge: 'NOM-206 México' },
-    { id: 'proximity', label: '5. Radar ADAS', icon: Eye, badge: 'Audio Alert' },
+    { id: 'geofence', label: '2. Geocercas', icon: ShieldCheck, badge: 'Perímetros Reales' },
+    { id: 'helmet', label: '3. Casco IA', icon: Camera, badge: 'NOM-206 México' },
+    { id: 'proximity', label: '4. Radar ADAS', icon: Eye, badge: 'Audio Alert' },
   ];
 
   return (
@@ -75,7 +75,7 @@ export default function Telemetry() {
       <div className="flex-1 md:ml-[290px] relative z-10">
         <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-6">
           
-          {/* Header de la Página (Sin flecha hacia atrás) */}
+          {/* Header de la Página */}
           <motion.div 
             initial={{ opacity: 0, y: -10 }} 
             animate={{ opacity: 1, y: 0 }}
@@ -83,16 +83,16 @@ export default function Telemetry() {
           >
             <div>
               <div className="flex items-center gap-2 flex-wrap">
-                <h1 className="text-2xl md:text-3xl font-black text-indigo-950 tracking-tight">
+                <h1 className="text-2xl md:text-3xl font-black text-secondary tracking-tight">
                   Centro de Telemetría Satelital & Hardware
                 </h1>
-                <span className="px-3 py-1 bg-cyan-500/10 text-cyan-700 text-xs font-black uppercase rounded-full border border-cyan-500/20 flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-cyan-500 animate-pulse" />
+                <span className="px-3 py-1 bg-primary/10 text-primary text-xs font-black uppercase rounded-full border border-primary/20 flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
                   En Tiempo Real
                 </span>
               </div>
               <p className="text-xs md:text-sm text-slate-500 font-medium mt-1">
-                Monitoreo vehicular en vivo en mapa real, protección SOS, visión por IA para casco y radar ADAS
+                Monitoreo vehicular en mapa satelital en vivo, geocercas activas, inspección de casco con IA y radar ADAS
               </p>
             </div>
 
@@ -103,28 +103,27 @@ export default function Telemetry() {
                 <span>88% LiPo</span>
               </div>
               <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white rounded-xl shadow-xs text-xs font-mono font-bold text-slate-800">
-                <Wifi size={14} className="text-cyan-500" />
+                <Wifi size={14} className="text-primary" />
                 <span>4G LTE</span>
               </div>
               <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white rounded-xl shadow-xs text-xs font-mono font-bold text-slate-800">
-                <Satellite size={14} className="text-indigo-500" />
+                <Satellite size={14} className="text-accent" />
                 <span>12 Sats</span>
               </div>
             </div>
           </motion.div>
 
-          {/* Selector de Secciones SIN Scroll Horizontal (Cuadrícula Adaptativa) */}
-          <div className="bg-white/80 backdrop-blur-xl border border-white/50 p-2 rounded-2xl shadow-sm border border-gray-100 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+          {/* Selector de Secciones SIN Scroll Horizontal (Cuadrícula Adaptativa de 4 Columnas) */}
+          <div className="bg-white/80 backdrop-blur-xl border border-white/50 p-2 rounded-2xl shadow-sm border border-gray-100 grid grid-cols-2 lg:grid-cols-4 gap-2">
             {tabs.map((tab) => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.id;
-              const isHighlight = tab.id === 'helmet' || tab.id === 'proximity';
 
               return (
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`flex items-center gap-2 p-3 rounded-xl font-bold text-xs transition-all duration-200 text-left select-none relative overflow-hidden ${
+                  className={`flex items-center gap-2 p-3 rounded-xl font-bold text-xs transition-all duration-200 text-left select-none relative overflow-hidden cursor-pointer ${
                     isActive
                       ? 'bg-primary text-white shadow-lg shadow-primary/30 scale-[1.01]'
                       : 'bg-slate-50/80 hover:bg-slate-100 text-slate-700 hover:text-slate-900 border border-slate-200/60'
@@ -152,9 +151,6 @@ export default function Telemetry() {
           <div className="transition-all">
             {activeTab === 'gps' && (
               <LiveGpsTracker isModal={false} />
-            )}
-            {activeTab === 'crash' && (
-              <CrashDetectionView />
             )}
             {activeTab === 'geofence' && (
               <GeofencingView />
