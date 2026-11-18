@@ -18,10 +18,11 @@ import {
   Radio, 
   Power,
   ChevronRight,
-  ShieldAlert
+  ShieldAlert,
+  Search
 } from 'lucide-react';
 import { loadLeaflet, MAP_PROVIDERS } from '../../utils/leafletLoader';
-import { calculateDistanceKm } from '../../utils/routeAiService';
+import { calculateDistanceKm, searchPlaces } from '../../utils/routeAiService';
 import { proximityAudio } from '../../utils/proximityAudio';
 
 const STORAGE_KEY = 'qride_geofences_v2';
@@ -62,7 +63,76 @@ export function GeofencingView() {
   const [newType, setNewType] = useState('circle');
   const [newRadius, setNewRadius] = useState(150);
   const [pickedLatLng, setPickedLatLng] = useState(null);
+  const [pickedAddressName, setPickedAddressName] = useState('');
   const [mapProvider, setMapProvider] = useState('googleRoads');
+
+  // Búsqueda de ubicación con sugerencias estilo Maps
+  const [searchLocationQuery, setSearchLocationQuery] = useState('');
+  const [locationSearchResults, setLocationSearchResults] = useState([]);
+  const [isSearchingLocation, setIsSearchingLocation] = useState(false);
+  const searchTimeoutRef = useRef(null);
+
+  // Manejador de búsqueda con autocompletado y sugerencias
+  const handleLocationSearchChange = (text) => {
+    setSearchLocationQuery(text);
+    if (!text || text.trim().length < 2) {
+      setLocationSearchResults([]);
+      setIsSearchingLocation(false);
+      return;
+    }
+
+    setIsSearchingLocation(true);
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+
+    searchTimeoutRef.current = setTimeout(async () => {
+      try {
+        const results = await searchPlaces(text, userLocation);
+        setLocationSearchResults(results);
+      } catch (err) {
+        console.warn('Error buscando ubicaciones:', err);
+        setLocationSearchResults([]);
+      } finally {
+        setIsSearchingLocation(false);
+      }
+    }, 300);
+  };
+
+  // Seleccionar sugerencia de búsqueda
+  const handleSelectLocationResult = (place) => {
+    setPickedLatLng({ lat: place.lat, lng: place.lng });
+    setPickedAddressName(place.name || place.fullName);
+    setSearchLocationQuery(place.name);
+    setLocationSearchResults([]);
+    if (!newName.trim()) {
+      setNewName(place.name);
+    }
+    if (previewMapInstanceRef.current) {
+      previewMapInstanceRef.current.flyTo([place.lat, place.lng], 16, { duration: 0.6 });
+    }
+    if (mapInstanceRef.current) {
+      mapInstanceRef.current.flyTo([place.lat, place.lng], 16, { duration: 0.8 });
+    }
+  };
+
+  // Usar ubicación actual del GPS
+  const handleUseCurrentLocation = () => {
+    if (!userLocation) return;
+    setPickedLatLng({ lat: userLocation.lat, lng: userLocation.lng });
+    setPickedAddressName('Mi Ubicación Actual (GPS)');
+    setSearchLocationQuery('');
+    setLocationSearchResults([]);
+    if (!newName.trim()) {
+      setNewName('Mi Ubicación');
+    }
+    if (previewMapInstanceRef.current) {
+      previewMapInstanceRef.current.flyTo([userLocation.lat, userLocation.lng], 17, { duration: 0.6 });
+    }
+    if (mapInstanceRef.current) {
+      mapInstanceRef.current.flyTo([userLocation.lat, userLocation.lng], 17, { duration: 0.8 });
+    }
+  };
 
   // Referencias para Leaflet y Geolocation
   const mapContainerRef = useRef(null);
@@ -72,6 +142,12 @@ export function GeofencingView() {
   const tileLayerRef = useRef(null);
   const watchIdRef = useRef(null);
   const lastAlertTimeRef = useRef(0);
+
+  // Referencias para el Mapa de Referencia en Tiempo Real del Formulario
+  const previewMapContainerRef = useRef(null);
+  const previewMapInstanceRef = useRef(null);
+  const previewLayersRef = useRef(null);
+  const previewTileLayerRef = useRef(null);
 
   // 1. Persistir geocercas en localStorage
   useEffect(() => {
@@ -213,7 +289,12 @@ export function GeofencingView() {
 
       // Evento de clic en el mapa para capturar coordenadas al crear geocerca
       map.on('click', (e) => {
-        setPickedLatLng({ lat: e.latlng.lat, lng: e.latlng.lng });
+        const coords = { lat: e.latlng.lat, lng: e.latlng.lng };
+        setPickedLatLng(coords);
+        setPickedAddressName('Punto fijado en el mapa');
+        if (previewMapInstanceRef.current) {
+          previewMapInstanceRef.current.flyTo([coords.lat, coords.lng], 16, { duration: 0.5 });
+        }
       });
 
       mapInstanceRef.current = map;
@@ -233,18 +314,193 @@ export function GeofencingView() {
 
   // 5. Cambio dinámico de capa de mapa
   useEffect(() => {
-    if (!mapInstanceRef.current || !window.L) return;
+    if (!window.L) return;
     const provider = MAP_PROVIDERS[mapProvider] || MAP_PROVIDERS.googleRoads;
 
-    if (tileLayerRef.current) {
-      mapInstanceRef.current.removeLayer(tileLayerRef.current);
+    if (mapInstanceRef.current) {
+      if (tileLayerRef.current) {
+        mapInstanceRef.current.removeLayer(tileLayerRef.current);
+      }
+      tileLayerRef.current = window.L.tileLayer(provider.url, {
+        maxZoom: provider.maxZoom,
+        subdomains: ['a', 'b', 'c', 'd']
+      }).addTo(mapInstanceRef.current);
     }
 
-    tileLayerRef.current = window.L.tileLayer(provider.url, {
-      maxZoom: provider.maxZoom,
-      subdomains: ['a', 'b', 'c', 'd']
-    }).addTo(mapInstanceRef.current);
+    if (previewMapInstanceRef.current) {
+      if (previewTileLayerRef.current) {
+        previewMapInstanceRef.current.removeLayer(previewTileLayerRef.current);
+      }
+      previewTileLayerRef.current = window.L.tileLayer(provider.url, {
+        maxZoom: provider.maxZoom,
+        subdomains: ['a', 'b', 'c', 'd']
+      }).addTo(previewMapInstanceRef.current);
+    }
   }, [mapProvider]);
+
+  // Función para dibujar la geocerca de referencia en el formulario
+  const drawPreviewGeofence = (map, group, latLng, type, radius, userPos) => {
+    if (!window.L || !group) return;
+    const L = window.L;
+    group.clearLayers();
+
+    // Dibujar vehículo del usuario si existe
+    if (userPos) {
+      const userDot = L.circleMarker([userPos.lat, userPos.lng], {
+        radius: 6,
+        fillColor: '#2C254D',
+        color: '#ffffff',
+        weight: 2,
+        fillOpacity: 1
+      });
+      userDot.bindTooltip('Tu posición GPS actual', { permanent: false, direction: 'top' });
+      group.addLayer(userDot);
+    }
+
+    if (!latLng) return;
+
+    const centerLat = latLng.lat;
+    const centerLng = latLng.lng;
+
+    // Marcador central de la nueva geocerca
+    const centerMarker = L.circleMarker([centerLat, centerLng], {
+      radius: 7,
+      fillColor: '#7B1E3A',
+      color: '#ffffff',
+      weight: 2,
+      fillOpacity: 1
+    });
+    centerMarker.bindTooltip('Centro de la zona', { permanent: true, direction: 'top' });
+    group.addLayer(centerMarker);
+
+    // Dibujar perímetro de referencia
+    if (type === 'circle') {
+      const circle = L.circle([centerLat, centerLng], {
+        radius: radius,
+        color: '#7B1E3A',
+        fillColor: '#7B1E3A',
+        fillOpacity: 0.25,
+        weight: 2.5,
+        dashArray: '5, 5'
+      });
+      group.addLayer(circle);
+
+      // Círculo exterior de margen de histéresis (+25m)
+      const tolCircle = L.circle([centerLat, centerLng], {
+        radius: radius + 25,
+        color: '#2C254D',
+        fill: false,
+        weight: 1,
+        dashArray: '3, 4',
+        opacity: 0.4
+      });
+      group.addLayer(tolCircle);
+    } else if (type === 'polygon') {
+      const delta = 0.0018;
+      const pts = [
+        [centerLat + delta, centerLng - delta],
+        [centerLat + delta, centerLng + delta],
+        [centerLat - delta, centerLng + delta],
+        [centerLat - delta, centerLng - delta]
+      ];
+      const polygon = L.polygon(pts, {
+        color: '#7B1E3A',
+        fillColor: '#7B1E3A',
+        fillOpacity: 0.25,
+        weight: 2.5,
+        dashArray: '5, 5'
+      });
+      group.addLayer(polygon);
+    }
+  };
+
+  // Inicialización y ciclo de vida del Mapa de Referencia dentro del formulario
+  useEffect(() => {
+    if (!isCreating) {
+      if (previewMapInstanceRef.current) {
+        previewMapInstanceRef.current.remove();
+        previewMapInstanceRef.current = null;
+        previewLayersRef.current = null;
+        previewTileLayerRef.current = null;
+      }
+      return;
+    }
+
+    let isMounted = true;
+    const timer = setTimeout(() => {
+      loadLeaflet().then((L) => {
+        if (!isMounted || !previewMapContainerRef.current) return;
+
+        if (previewMapInstanceRef.current) {
+          previewMapInstanceRef.current.remove();
+          previewMapInstanceRef.current = null;
+        }
+
+        const centerCoords = pickedLatLng 
+          ? [pickedLatLng.lat, pickedLatLng.lng]
+          : (userLocation ? [userLocation.lat, userLocation.lng] : [19.4326, -99.1332]);
+
+        const pMap = L.map(previewMapContainerRef.current, {
+          center: centerCoords,
+          zoom: 16,
+          zoomControl: false,
+          attributionControl: false
+        });
+
+        L.control.zoom({ position: 'topright' }).addTo(pMap);
+
+        const provider = MAP_PROVIDERS[mapProvider] || MAP_PROVIDERS.googleRoads;
+        previewTileLayerRef.current = L.tileLayer(provider.url, {
+          maxZoom: provider.maxZoom,
+          subdomains: ['a', 'b', 'c', 'd']
+        }).addTo(pMap);
+
+        const pLayers = L.layerGroup().addTo(pMap);
+        previewLayersRef.current = pLayers;
+
+        pMap.on('click', (e) => {
+          const newPos = { lat: e.latlng.lat, lng: e.latlng.lng };
+          setPickedLatLng(newPos);
+          setPickedAddressName('Punto seleccionado en mapa');
+          if (mapInstanceRef.current) {
+            mapInstanceRef.current.flyTo([newPos.lat, newPos.lng], 16, { duration: 0.5 });
+          }
+        });
+
+        previewMapInstanceRef.current = pMap;
+
+        // Invalidate size para ajustar dimensiones tras la animación
+        setTimeout(() => {
+          if (previewMapInstanceRef.current) {
+            previewMapInstanceRef.current.invalidateSize();
+          }
+        }, 250);
+
+        const targetPos = pickedLatLng || (userLocation ? { lat: userLocation.lat, lng: userLocation.lng } : null);
+        drawPreviewGeofence(pMap, pLayers, targetPos, newType, newRadius, userLocation);
+      }).catch(err => {
+        console.error('Error cargando mapa de referencia en formulario:', err);
+      });
+    }, 150);
+
+    return () => {
+      isMounted = false;
+      clearTimeout(timer);
+      if (previewMapInstanceRef.current) {
+        previewMapInstanceRef.current.remove();
+        previewMapInstanceRef.current = null;
+        previewLayersRef.current = null;
+        previewTileLayerRef.current = null;
+      }
+    };
+  }, [isCreating]);
+
+  // Redibujar mapa de referencia cuando cambian parámetros del formulario
+  useEffect(() => {
+    if (!isCreating || !previewMapInstanceRef.current || !previewLayersRef.current) return;
+    const targetPos = pickedLatLng || (userLocation ? { lat: userLocation.lat, lng: userLocation.lng } : null);
+    drawPreviewGeofence(previewMapInstanceRef.current, previewLayersRef.current, targetPos, newType, newRadius, userLocation);
+  }, [pickedLatLng, newType, newRadius, userLocation, isCreating]);
 
   // 6. Redibujar geocercas y vehículo cuando cambian datos o posición GPS
   useEffect(() => {
@@ -465,6 +721,9 @@ export function GeofencingView() {
     setIsCreating(false);
     setNewName('');
     setPickedLatLng(null);
+    setPickedAddressName('');
+    setSearchLocationQuery('');
+    setLocationSearchResults([]);
 
     // Centrar mapa en la nueva geocerca
     if (mapInstanceRef.current) {
@@ -582,17 +841,239 @@ export function GeofencingView() {
         {/* Botón Nueva Geocerca */}
         <button 
           onClick={() => {
-            setIsCreating(true);
-            if (userLocation) {
-              setPickedLatLng({ lat: userLocation.lat, lng: userLocation.lng });
+            const next = !isCreating;
+            setIsCreating(next);
+            if (next && !pickedLatLng) {
+              if (userLocation) {
+                setPickedLatLng({ lat: userLocation.lat, lng: userLocation.lng });
+                setPickedAddressName('Mi Ubicación Actual (GPS)');
+              } else {
+                setPickedLatLng({ lat: 19.4326, lng: -99.1332 });
+                setPickedAddressName('Ciudad de México (Centro)');
+              }
             }
           }}
           className="w-full sm:w-auto justify-center px-5 py-3 bg-primary hover:bg-btn-hover text-white font-bold rounded-2xl text-xs flex items-center gap-2 shadow-lg shadow-primary/35 transition-all transform hover:scale-[1.02] active:scale-95 shrink-0 cursor-pointer"
         >
-          <Plus size={17} /> 
-          <span>Crear Geocerca</span>
+          {isCreating ? <X size={17} /> : <Plus size={17} />} 
+          <span>{isCreating ? 'Cerrar Formulario' : 'Crear Geocerca'}</span>
         </button>
       </div>
+
+      {/* Formulario de Creación de Nueva Geocerca (Desplegado directamente debajo del botón Crear Geocerca con Buscador Maps y Mapa de Referencia) */}
+      <AnimatePresence>
+        {isCreating && (
+          <motion.div 
+            initial={{ opacity: 0, y: -10, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -10, scale: 0.98 }}
+            className="p-5 md:p-6 bg-white/95 backdrop-blur-xl rounded-3xl md:rounded-[2rem] border-2 border-primary/30 shadow-xl space-y-4"
+          >
+            <div className="flex justify-between items-center pb-2 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-primary/10 text-primary rounded-xl">
+                  <MapPin size={18} />
+                </div>
+                <div>
+                  <h4 className="font-extrabold text-sm md:text-base text-secondary">
+                    Configurar Nuevo Perímetro Seguro
+                  </h4>
+                  <p className="text-xs text-slate-500">
+                    Busca una ubicación con sugerencias, usa tu GPS actual o haz clic en el mapa de referencia interactivo.
+                  </p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setIsCreating(false)} 
+                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-xl hover:bg-slate-100 cursor-pointer transition-colors"
+                title="Cerrar formulario"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 pt-1">
+              {/* Controles de Configuración: 7 columnas en desktop */}
+              <div className="lg:col-span-7 flex flex-col justify-between space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Columna Izquierda: Ubicación y Buscador con Sugerencias */}
+                  <div className="space-y-3">
+                    <label className="text-[11px] font-extrabold uppercase text-slate-500 tracking-wider block">
+                      1. Seleccionar Ubicación
+                    </label>
+
+                    {/* Barra de Búsqueda con Sugerencias Estilo Google Maps */}
+                    <div className="relative">
+                      <div className="relative flex items-center">
+                        <Search size={15} className="absolute left-3.5 text-slate-400 pointer-events-none" />
+                        <input
+                          type="text"
+                          placeholder="Buscar dirección o lugar..."
+                          value={searchLocationQuery}
+                          onChange={(e) => handleLocationSearchChange(e.target.value)}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-8 py-2.5 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-primary/40 focus:border-primary outline-none transition-all"
+                        />
+                        {searchLocationQuery && (
+                          <button
+                            type="button"
+                            onClick={() => { setSearchLocationQuery(''); setLocationSearchResults([]); }}
+                            className="absolute right-2.5 text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
+                          >
+                            <X size={14} />
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Dropdown de Sugerencias Nominatim */}
+                      {locationSearchResults.length > 0 && (
+                        <div className="absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-slate-200 overflow-hidden z-50 max-h-52 overflow-y-auto">
+                          {locationSearchResults.map((place) => (
+                            <div
+                              key={place.id}
+                              onClick={() => handleSelectLocationResult(place)}
+                              className="p-2.5 hover:bg-primary/5 border-b border-slate-100 last:border-0 cursor-pointer transition-colors flex items-start gap-2"
+                            >
+                              <MapPin size={14} className="text-primary shrink-0 mt-0.5" />
+                              <div className="min-w-0">
+                                <p className="text-xs font-bold text-secondary truncate">{place.name}</p>
+                                <p className="text-[10px] text-slate-500 truncate">{place.fullName}</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Botón Usar mi ubicación actual (GPS) */}
+                    <button
+                      type="button"
+                      onClick={handleUseCurrentLocation}
+                      disabled={!userLocation}
+                      className="w-full py-2.5 px-3 bg-slate-100 hover:bg-slate-200 active:scale-98 text-secondary rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all border border-slate-200 cursor-pointer disabled:opacity-50"
+                    >
+                      <Crosshair size={14} className="text-primary" />
+                      <span>Usar mi posición actual (GPS)</span>
+                    </button>
+
+                    {/* Indicador de coordenadas / Punto fijado */}
+                    {pickedLatLng ? (
+                      <div className="bg-emerald-50 text-emerald-900 border border-emerald-200 p-2.5 rounded-xl text-xs font-mono font-bold flex items-center justify-between">
+                        <span className="truncate">📍 {pickedAddressName || `Lat: ${pickedLatLng.lat.toFixed(4)}, Lng: ${pickedLatLng.lng.toFixed(4)}`}</span>
+                        <span className="text-[10px] text-emerald-700 uppercase shrink-0 font-sans ml-2">Fijado</span>
+                      </div>
+                    ) : (
+                      <div className="text-[11px] text-slate-400 bg-slate-50 p-2.5 rounded-xl border border-dashed border-slate-200">
+                        💡 Selecciona una sugerencia, usa tu GPS o haz clic en el mapa de referencia.
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Columna Derecha: Parámetros */}
+                  <div className="space-y-3">
+                    <label className="text-[11px] font-extrabold uppercase text-slate-500 tracking-wider block">
+                      2. Nombre y Cobertura
+                    </label>
+
+                    <input 
+                      type="text" 
+                      placeholder="Nombre de la zona (ej. Casa, Trabajo)" 
+                      value={newName} 
+                      onChange={e => setNewName(e.target.value)} 
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-primary/40 outline-none"
+                    />
+
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <button 
+                        type="button" 
+                        onClick={() => setNewType('circle')}
+                        className={`py-2 rounded-xl font-bold border transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                          newType === 'circle' 
+                            ? 'bg-primary text-white border-primary shadow-xs' 
+                            : 'bg-slate-50 border-slate-200 text-slate-700'
+                        }`}
+                      >
+                        <Circle size={13} /> Círculo
+                      </button>
+                      <button 
+                        type="button" 
+                        onClick={() => setNewType('polygon')}
+                        className={`py-2 rounded-xl font-bold border transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                          newType === 'polygon' 
+                            ? 'bg-primary text-white border-primary shadow-xs' 
+                            : 'bg-slate-50 border-slate-200 text-slate-700'
+                        }`}
+                      >
+                        <Hexagon size={13} /> Polígono
+                      </button>
+                    </div>
+
+                    {newType === 'circle' && (
+                      <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+                        <div className="flex justify-between items-center mb-1">
+                          <label className="text-[10px] font-bold text-slate-500 uppercase">Radio de Cobertura</label>
+                          <span className="text-xs font-mono font-bold text-primary">{newRadius} metros</span>
+                        </div>
+                        <input 
+                          type="range" min="50" max="1000" step="25" 
+                          value={newRadius} onChange={e => setNewRadius(Number(e.target.value))} 
+                          className="w-full accent-primary cursor-pointer"
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Botones Guardar / Cancelar */}
+                <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
+                  <button 
+                    type="button"
+                    onClick={handleCreateGeofence} 
+                    disabled={!newName.trim()}
+                    className="flex-1 py-3 bg-primary hover:bg-btn-hover disabled:opacity-40 text-white rounded-xl text-xs font-bold shadow-md shadow-primary/30 transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-1.5"
+                  >
+                    <CheckCircle2 size={15} /> Guardar Zona Segura
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={() => setIsCreating(false)} 
+                    className="py-3 px-4 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+
+              {/* Columna Derecha: Mapa de Referencia en Tiempo Real: 5 columnas en desktop */}
+              <div className="lg:col-span-5 flex flex-col space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-[11px] font-extrabold uppercase text-slate-500 tracking-wider flex items-center gap-1.5">
+                    <MapPin size={13} className="text-primary" />
+                    3. Previsualización del Perímetro
+                  </label>
+                  <span className="text-[10px] font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-md">
+                    {newType === 'circle' ? `Radio: ${newRadius}m` : 'Polígono'}
+                  </span>
+                </div>
+
+                {/* Contenedor del Mapa de Referencia */}
+                <div className="relative w-full h-64 sm:h-72 lg:h-full min-h-[260px] rounded-2xl overflow-hidden border border-slate-200 shadow-inner bg-slate-100">
+                  <div ref={previewMapContainerRef} className="w-full h-full z-0" />
+
+                  {/* Floating Badges */}
+                  <div className="absolute top-2.5 left-2.5 z-[400] bg-secondary/90 backdrop-blur-md px-2.5 py-1 rounded-xl text-[10px] font-bold text-white shadow-md flex items-center gap-1.5 border border-white/10 pointer-events-none">
+                    <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+                    <span>Perímetro antes de guardar</span>
+                  </div>
+
+                  <div className="absolute bottom-2.5 right-2.5 z-[400] bg-white/95 backdrop-blur-md px-2.5 py-1 rounded-xl text-[10px] font-bold text-slate-700 shadow-md border border-slate-200 pointer-events-none">
+                    👆 Clic en mapa para reubicar centro
+                  </div>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Grid: Mapa Real + Panel de Control de Geocercas */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -697,101 +1178,6 @@ export function GeofencingView() {
               Toca para inspeccionar
             </span>
           </div>
-
-          {/* Formulario de Creación de Nueva Geocerca */}
-          <AnimatePresence>
-            {isCreating && (
-              <motion.div 
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                className="p-5 bg-white rounded-3xl border-2 border-primary/40 shadow-xl space-y-3"
-              >
-                <div className="flex justify-between items-center">
-                  <h4 className="font-extrabold text-sm text-secondary">Nuevo Perímetro Seguro</h4>
-                  <button 
-                    onClick={() => setIsCreating(false)} 
-                    className="text-slate-400 hover:text-slate-600 p-1"
-                  >
-                    <X size={16} />
-                  </button>
-                </div>
-
-                {pickedLatLng ? (
-                  <div className="bg-primary/5 text-primary p-2.5 rounded-xl text-xs font-mono font-bold flex items-center justify-between">
-                    <span>📍 Lat: {pickedLatLng.lat.toFixed(5)}, Lng: {pickedLatLng.lng.toFixed(5)}</span>
-                    <span className="text-[10px] text-slate-500">Punto fijado</span>
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (userLocation) setPickedLatLng({ lat: userLocation.lat, lng: userLocation.lng });
-                    }}
-                    className="w-full py-2 px-3 bg-slate-100 hover:bg-slate-200 text-secondary rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-colors"
-                  >
-                    <MapPin size={13} className="text-primary" />
-                    <span>Usar mi posición actual como centro</span>
-                  </button>
-                )}
-
-                <input 
-                  type="text" 
-                  placeholder="Nombre de la zona (ej. Casa, Trabajo, Taller)" 
-                  value={newName} 
-                  onChange={e => setNewName(e.target.value)} 
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-primary/40 outline-none"
-                  autoFocus
-                />
-
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  <button 
-                    type="button" 
-                    onClick={() => setNewType('circle')}
-                    className={`py-2 rounded-xl font-bold border transition-all ${
-                      newType === 'circle' 
-                        ? 'bg-primary text-white border-primary shadow-xs' 
-                        : 'bg-slate-50 border-slate-200 text-slate-700'
-                    }`}
-                  >
-                    Círculo
-                  </button>
-                  <button 
-                    type="button" 
-                    onClick={() => setNewType('polygon')}
-                    className={`py-2 rounded-xl font-bold border transition-all ${
-                      newType === 'polygon' 
-                        ? 'bg-primary text-white border-primary shadow-xs' 
-                        : 'bg-slate-50 border-slate-200 text-slate-700'
-                    }`}
-                  >
-                    Polígono
-                  </button>
-                </div>
-
-                {newType === 'circle' && (
-                  <div>
-                    <div className="flex justify-between items-center mb-1">
-                      <label className="text-[10px] font-bold text-slate-400 uppercase">Radio de Cobertura</label>
-                      <span className="text-xs font-mono font-bold text-primary">{newRadius} metros</span>
-                    </div>
-                    <input 
-                      type="range" min="50" max="1000" step="25" 
-                      value={newRadius} onChange={e => setNewRadius(Number(e.target.value))} 
-                      className="w-full accent-primary cursor-pointer"
-                    />
-                  </div>
-                )}
-
-                <button 
-                  onClick={handleCreateGeofence} 
-                  className="w-full py-3 bg-primary hover:bg-btn-hover text-white rounded-xl text-xs font-bold shadow-md shadow-primary/30 transition-all active:scale-95 cursor-pointer"
-                >
-                  Guardar Perímetro en Memoria
-                </button>
-              </motion.div>
-            )}
-          </AnimatePresence>
 
           {/* Tarjetas de Geocercas */}
           <div className="space-y-3">

@@ -143,9 +143,8 @@ export function ProximityAlertView() {
     isDetectingRef.current = false;
   };
 
-  // Iniciar automáticamente el radar al montar el componente
+  // Limpiar recursos al desmontar
   useEffect(() => {
-    startCamera();
     return () => {
       stopCamera();
     };
