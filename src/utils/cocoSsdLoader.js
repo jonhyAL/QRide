@@ -110,10 +110,10 @@ export function estimateProximity(bbox, frameWidth, frameHeight, className = 'pe
 
   distance = Number(distance.toFixed(1));
 
-  let zone = 'safe'; // 'safe' (> 3.6m) | 'warning' (1.8m - 3.6m) | 'critical' (< 1.8m)
-  if (distance <= 1.8) {
+  let zone = 'safe'; // 'safe' (> 4.5m) | 'warning' (2.5m - 4.5m) | 'critical' (< 2.5m)
+  if (distance <= 2.5) {
     zone = 'critical';
-  } else if (distance <= 3.6) {
+  } else if (distance <= 4.5) {
     zone = 'warning';
   }
 

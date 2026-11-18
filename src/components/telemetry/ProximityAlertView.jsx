@@ -143,6 +143,14 @@ export function ProximityAlertView() {
     isDetectingRef.current = false;
   };
 
+  // Iniciar automáticamente el radar al montar el componente
+  useEffect(() => {
+    startCamera();
+    return () => {
+      stopCamera();
+    };
+  }, []);
+
   const toggleCameraFacing = () => {
     setCameraFacing(prev => (prev === 'environment' ? 'user' : 'environment'));
   };
@@ -216,11 +224,11 @@ export function ProximityAlertView() {
             setClosestObject(nearest);
 
             // Disparar alertas acústicas adaptativas según la proximidad del objeto más cercano
-            // Regla solicitada: Solo suena cuando el objetivo está en ROJO (zona crítica < 1.8m).
+            // Regla solicitada: Solo suena cuando el objetivo está en ROJO (zona crítica < 2.5m).
             // En AMARILLO (advertencia) solo se resalta visualmente en pantalla sin sonido.
             if (nearest && soundEnabledRef.current) {
               if (nearest.proximity.zone === 'critical') {
-                // Menor a 1.8 metros: sonido penetrante de advertencia crítica
+                // Menor a 2.5 metros: sonido penetrante de advertencia crítica
                 proximityAudio.playCriticalTone();
               }
             }
@@ -402,19 +410,10 @@ export function ProximityAlertView() {
                 <div className="w-16 h-16 rounded-3xl bg-secondary/80 text-accent flex items-center justify-center mx-auto mb-3 border border-secondary">
                   <Eye size={32} />
                 </div>
-                <h5 className="font-extrabold text-white text-base">Radar Óptico en Espera</h5>
+                <h5 className="font-extrabold text-white text-base">Radar Óptico en Pausa</h5>
                 <p className="text-xs text-slate-400 mt-1">
-                  Enciende la cámara para escanear personas, vehículos y puntos ciegos en tiempo real con Inteligencia Artificial.
+                  Vigilancia de puntos ciegos y proximidad de colisión mediante visión artificial.
                 </p>
-                <div className="flex items-center justify-center gap-3 mt-5">
-                  <button
-                    onClick={startCamera}
-                    disabled={isModelLoading}
-                    className="px-6 py-3 bg-primary hover:bg-btn-hover text-white text-xs font-black rounded-xl shadow-lg shadow-primary/30 flex items-center gap-2 transition-all active:scale-95 cursor-pointer"
-                  >
-                    <Camera size={16} /> Activar Radar en Vivo
-                  </button>
-                </div>
                 {isModelLoading && (
                   <p className="text-[11px] text-accent font-mono mt-3 animate-pulse">
                     {modelStatus}
@@ -500,7 +499,7 @@ export function ProximityAlertView() {
                   disabled={isModelLoading}
                   className="w-full sm:w-auto px-5 py-2.5 bg-primary hover:bg-btn-hover text-white text-xs font-black rounded-xl shadow-md shadow-primary/25 flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer"
                 >
-                  <Camera size={16} /> Activar Cámara del Radar
+                  <Camera size={16} /> Iniciar Radar ADAS
                 </button>
               )}
             </div>
@@ -547,9 +546,9 @@ export function ProximityAlertView() {
                 </div>
                 <p className="text-[11px] text-center font-bold mt-1">
                   {closestObject.proximity.zone === 'critical' 
-                    ? '¡Alarma sonora continua activada!' 
+                    ? '¡Alarma sonora continua activada (< 2.5m)!' 
                     : closestObject.proximity.zone === 'warning'
-                    ? 'Beep intermitente de alerta'
+                    ? 'Advertencia visual en rango de prevención'
                     : 'Sin peligro de colisión'}
                 </p>
               </div>

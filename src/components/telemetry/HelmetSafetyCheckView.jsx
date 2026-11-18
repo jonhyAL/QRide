@@ -235,30 +235,32 @@ export function HelmetSafetyCheckView({ onCameraActiveChange }) {
   };
 
   return (
-    <div className="space-y-6">
-      {/* Banner Superior */}
-      <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 p-5 md:p-6 rounded-3xl border border-indigo-500/20 text-white shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-        <div>
-          <h4 className="font-extrabold text-base md:text-lg">
-            Inspección Pericial de Casco con Google Gemini Vision AI
-          </h4>
-          <p className="text-xs text-slate-300 max-w-2xl mt-1">
-            Escanea la calota o el sello posterior de tu casco. La IA multimodal de Gemini dictamina daños estructurales, fisuras, tipo de casco y validez legal ante multas y corralón en México.
-          </p>
-        </div>
+    <div className={streamActive ? 'w-full h-full' : 'space-y-6'}>
+      {/* Banner Superior (oculto durante transmisión en vivo) */}
+      {!streamActive && (
+        <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 p-5 md:p-6 rounded-3xl border border-indigo-500/20 text-white shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <div>
+            <h4 className="font-extrabold text-base md:text-lg">
+              Inspección Pericial de Casco con Google Gemini Vision AI
+            </h4>
+            <p className="text-xs text-slate-300 max-w-2xl mt-1">
+              Escanea la calota o el sello posterior de tu casco. La IA multimodal de Gemini dictamina daños estructurales, fisuras, tipo de casco y validez legal ante multas y corralón en México.
+            </p>
+          </div>
 
-        <div className="flex items-center gap-2 flex-wrap shrink-0">
-          <button
-            onClick={() => setShowLawModal(true)}
-            className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-cyan-300 text-xs font-bold rounded-xl border border-cyan-500/30 flex items-center gap-1.5 transition-colors"
-          >
-            <Info size={14} /> Leyes en México
-          </button>
+          <div className="flex items-center gap-2 flex-wrap shrink-0">
+            <button
+              onClick={() => setShowLawModal(true)}
+              className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-cyan-300 text-xs font-bold rounded-xl border border-cyan-500/30 flex items-center gap-1.5 transition-colors cursor-pointer"
+            >
+              <Info size={14} /> Leyes en México
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* Alerta de API Key Faltante */}
-      {!apiKey && (
+      {/* Alerta de API Key Faltante (oculta durante transmisión en vivo) */}
+      {!streamActive && !apiKey && (
         <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex items-center justify-between gap-4 text-xs">
           <div className="flex items-center gap-3 text-amber-900">
             <AlertTriangle size={20} className="text-amber-600 shrink-0" />
@@ -271,7 +273,7 @@ export function HelmetSafetyCheckView({ onCameraActiveChange }) {
               setTempApiKeyInput('');
               setShowApiKeyModal(true);
             }}
-            className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-xl shrink-0 shadow-sm"
+            className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-xl shrink-0 shadow-sm cursor-pointer"
           >
             Agregar Clave Gratis
           </button>
@@ -279,26 +281,39 @@ export function HelmetSafetyCheckView({ onCameraActiveChange }) {
       )}
 
       {/* Visor de Cámara y HUD de Escaneo */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        <div className="lg:col-span-12 space-y-4">
+      <div className={streamActive ? 'w-full h-full' : 'grid grid-cols-1 lg:grid-cols-12 gap-6'}>
+        <div className={streamActive ? 'w-full h-full' : 'lg:col-span-12 space-y-4'}>
           <div className={`${
             streamActive 
-              ? 'fixed inset-0 z-[9999] bg-black flex flex-col justify-between overflow-hidden md:relative md:inset-auto md:z-auto md:w-full md:aspect-video md:aspect-[21/9] md:max-h-[460px] md:rounded-3xl md:border md:border-slate-800 md:shadow-2xl' 
+              ? 'fixed inset-0 z-[99999] w-screen h-[100dvh] bg-black overflow-hidden flex flex-col justify-between' 
               : 'relative w-full aspect-video md:aspect-[21/9] max-h-[460px] bg-slate-950 rounded-3xl overflow-hidden border border-slate-800 shadow-2xl flex items-center justify-center'
           }`}>
             
-            {/* Header Flotante en Móvil cuando la cámara está activa */}
+            {/* 1. Video en Vivo (Pinned al fondo absoluto para cubrir el 100% sin desplazar controles) */}
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              muted
+              className={`object-cover ${
+                streamActive 
+                  ? 'absolute inset-0 w-full h-full z-0' 
+                  : 'w-full h-full hidden'
+              }`}
+            />
+
+            {/* Header Flotante cuando la cámara está activa */}
             {streamActive && (
-              <div className="flex md:hidden items-center justify-between p-4 z-40 bg-gradient-to-b from-black/80 to-transparent">
+              <div className="relative z-30 flex items-center justify-between p-4 pt-6 md:p-6 bg-gradient-to-b from-black/85 via-black/40 to-transparent">
                 <div className="flex items-center gap-2">
                   <div className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse" />
-                  <span className="text-white font-bold text-xs">Escáner Pericial en Vivo</span>
+                  <span className="text-white font-bold text-xs tracking-wide">Escáner Pericial en Vivo</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
                     onClick={toggleCameraFacing}
-                    className="p-2.5 bg-white/10 hover:bg-white/20 active:scale-95 text-white rounded-xl backdrop-blur-md"
+                    className="p-2.5 bg-white/10 hover:bg-white/20 active:scale-95 text-white rounded-xl backdrop-blur-md cursor-pointer transition-transform"
                     title="Rotar cámara"
                   >
                     <RotateCw size={18} />
@@ -306,7 +321,7 @@ export function HelmetSafetyCheckView({ onCameraActiveChange }) {
                   <button
                     type="button"
                     onClick={stopCamera}
-                    className="p-2.5 bg-white/10 hover:bg-white/20 active:scale-95 text-white rounded-xl backdrop-blur-md"
+                    className="p-2.5 bg-white/10 hover:bg-white/20 active:scale-95 text-white rounded-xl backdrop-blur-md cursor-pointer transition-transform"
                     title="Cerrar cámara"
                   >
                     <X size={18} />
@@ -314,15 +329,6 @@ export function HelmetSafetyCheckView({ onCameraActiveChange }) {
                 </div>
               </div>
             )}
-
-            {/* 1. Video en Vivo */}
-            <video
-              ref={videoRef}
-              autoPlay
-              playsInline
-              muted
-              className={`w-full h-full object-cover ${streamActive ? 'block' : 'hidden'}`}
-            />
 
             {/* 2. Imagen Capturada / Subida */}
             {!streamActive && capturedImage && (
@@ -346,13 +352,13 @@ export function HelmetSafetyCheckView({ onCameraActiveChange }) {
                 <div className="flex items-center justify-center gap-3 mt-4">
                   <button
                     onClick={startCamera}
-                    className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-cyan-600 hover:from-indigo-500 hover:to-cyan-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-indigo-500/20 flex items-center gap-2"
+                    className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-cyan-600 hover:from-indigo-500 hover:to-cyan-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-indigo-500/20 flex items-center gap-2 cursor-pointer"
                   >
                     <Camera size={15} /> Activar Cámara
                   </button>
                   <button
                     onClick={() => fileInputRef.current?.click()}
-                    className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl border border-slate-700 flex items-center gap-2"
+                    className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl border border-slate-700 flex items-center gap-2 cursor-pointer"
                   >
                     <Upload size={15} /> Cargar Foto
                   </button>
@@ -362,15 +368,15 @@ export function HelmetSafetyCheckView({ onCameraActiveChange }) {
 
             {/* 4. Overlay de Escaneo AR y Rayo Láser */}
             {(streamActive || isAnalyzing) && (
-              <div className="absolute inset-0 pointer-events-none flex flex-col justify-between p-4 pt-16 md:pt-4 pb-28 md:pb-4">
-                <div className="relative w-full h-full border-2 border-dashed border-cyan-400/40 rounded-2xl flex items-center justify-center">
+              <div className="relative z-20 flex-1 flex flex-col items-center justify-center p-4 pointer-events-none">
+                <div className="relative w-full max-w-sm aspect-square sm:aspect-4/3 border-2 border-dashed border-cyan-400/40 rounded-3xl flex items-center justify-center">
                   <div className="absolute top-2 left-2 w-5 h-5 border-t-2 border-l-2 border-cyan-400" />
                   <div className="absolute top-2 right-2 w-5 h-5 border-t-2 border-r-2 border-cyan-400" />
                   <div className="absolute bottom-2 left-2 w-5 h-5 border-b-2 border-l-2 border-cyan-400" />
                   <div className="absolute bottom-2 right-2 w-5 h-5 border-b-2 border-r-2 border-cyan-400" />
 
                   {/* Silueta guía */}
-                  <div className="w-64 h-64 sm:w-72 sm:h-72 rounded-full border border-cyan-400/30 flex flex-col items-center justify-center text-[11px] text-cyan-300 font-mono text-center p-4 bg-cyan-950/20 backdrop-blur-2xs">
+                  <div className="w-56 h-56 sm:w-64 sm:h-64 rounded-full border border-cyan-400/30 flex flex-col items-center justify-center text-[11px] text-cyan-300 font-mono text-center p-4 bg-cyan-950/20 backdrop-blur-2xs">
                     <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-ping mb-2" />
                     Encuadra el casco completo o el sello de certificación (DOT / ECE / NOM-206)
                   </div>
@@ -386,42 +392,43 @@ export function HelmetSafetyCheckView({ onCameraActiveChange }) {
                   )}
                 </div>
 
-                <div className="flex items-center justify-between text-[11px] font-mono text-white bg-slate-900/80 backdrop-blur-md px-3 py-1.5 rounded-xl border border-slate-700 mt-2">
+                <div className="mt-3 flex items-center justify-between text-[11px] font-mono text-white bg-slate-900/80 backdrop-blur-md px-3 py-1.5 rounded-xl border border-slate-700">
                   <span className="flex items-center gap-1.5 text-cyan-400 font-bold">
                     <Sparkles size={14} className="text-indigo-400" /> PERITAJE VISION IA
                   </span>
-                  <span>{cameraFacing === 'environment' ? 'Lente Trasero' : 'Lente Frontal'}</span>
+                  <span className="ml-2">{cameraFacing === 'environment' ? 'Lente Trasero' : 'Lente Frontal'}</span>
                 </div>
               </div>
             )}
 
-            {/* Controles Flotantes Inferiores en Móvil cuando la cámara está activa */}
+            {/* Controles Flotantes Inferiores cuando la cámara está activa */}
             {streamActive && (
-              <div className="flex md:hidden items-center justify-around p-5 z-40 bg-gradient-to-t from-black/95 via-black/80 to-transparent">
+              <div className="relative z-30 flex items-center justify-around p-5 pb-8 sm:pb-6 bg-gradient-to-t from-black/95 via-black/80 to-transparent">
                 <button
                   type="button"
                   onClick={stopCamera}
-                  className="px-4 py-2.5 bg-white/10 active:scale-95 text-slate-300 font-bold text-xs rounded-xl"
+                  className="px-4 py-2.5 bg-white/10 hover:bg-white/20 active:scale-95 text-slate-200 font-bold text-xs rounded-xl transition-all cursor-pointer"
                 >
                   Cancelar
                 </button>
 
-                {/* Botón Shutter Principal en Móvil */}
+                {/* Botón Shutter Principal para Tomar Foto */}
                 <button
                   type="button"
                   onClick={capturePhoto}
                   disabled={isAnalyzing}
-                  className="group relative w-18 h-18 rounded-full bg-gradient-to-tr from-cyan-500 to-indigo-600 p-1 flex items-center justify-center shadow-xl shadow-cyan-500/40 active:scale-90 transition-transform"
+                  className="group relative w-20 h-20 rounded-full bg-gradient-to-tr from-cyan-500 to-indigo-600 p-1 flex items-center justify-center shadow-2xl shadow-cyan-500/50 active:scale-90 transition-transform cursor-pointer"
+                  title="Tomar Foto y Escanear"
                 >
-                  <div className="w-full h-full rounded-full border-2 border-white/80 flex items-center justify-center">
-                    <Camera size={26} className="text-white" />
+                  <div className="w-full h-full rounded-full border-3 border-white flex items-center justify-center bg-white/10 group-hover:bg-white/20">
+                    <Camera size={28} className="text-white drop-shadow" />
                   </div>
                 </button>
 
                 <button
                   type="button"
                   onClick={toggleCameraFacing}
-                  className="p-3 bg-white/10 active:scale-95 text-white rounded-xl"
+                  className="p-3 bg-white/10 hover:bg-white/20 active:scale-95 text-white rounded-xl transition-all cursor-pointer"
                   title="Cambiar cámara"
                 >
                   <RotateCw size={20} />

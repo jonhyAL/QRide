@@ -85,79 +85,83 @@ export default function Telemetry() {
       )}
 
       {/* Contenido Principal de la Página */}
-      <div className={`flex-1 transition-all ${shouldHideNav ? 'm-0 p-0' : 'md:ml-[290px]'} relative z-10`}>
-        <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-6">
+      <div className={`flex-1 transition-all ${shouldHideNav ? 'm-0 p-0 w-full min-h-screen' : 'md:ml-[290px]'} relative z-10`}>
+        <div className={shouldHideNav ? 'p-0 m-0 w-full h-full' : 'p-4 md:p-8 max-w-7xl mx-auto space-y-6'}>
           
           {/* Header de la Página */}
-          <motion.div 
-            initial={{ opacity: 0, y: -10 }} 
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-white/80 backdrop-blur-xl border border-white/50 shadow-sm p-6 rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-4"
-          >
-            <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <h1 className="text-2xl md:text-3xl font-black text-secondary tracking-tight">
-                  Centro de Telemetría Satelital & Hardware
-                </h1>
+          {!shouldHideNav && (
+            <motion.div 
+              initial={{ opacity: 0, y: -10 }} 
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-white/80 backdrop-blur-xl border border-white/50 shadow-sm p-6 rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-4"
+            >
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h1 className="text-2xl md:text-3xl font-black text-secondary tracking-tight">
+                    Centro de Telemetría Satelital & Hardware
+                  </h1>
+                </div>
+                <p className="text-xs md:text-sm text-slate-500 font-medium mt-1">
+                  Monitoreo vehicular en mapa satelital en vivo, geocercas activas, inspección de casco con IA y radar ADAS
+                </p>
               </div>
-              <p className="text-xs md:text-sm text-slate-500 font-medium mt-1">
-                Monitoreo vehicular en mapa satelital en vivo, geocercas activas, inspección de casco con IA y radar ADAS
-              </p>
-            </div>
 
-            {/* Badges de Hardware en Vivo */}
-            <div className="flex items-center gap-2 flex-wrap bg-slate-50/80 p-2 rounded-2xl border border-slate-200/60 self-start md:self-auto">
-              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white rounded-xl shadow-xs text-xs font-mono font-bold text-slate-800">
-                <BatteryCharging size={14} className="text-emerald-500" />
-                <span>88% LiPo</span>
+              {/* Badges de Hardware en Vivo */}
+              <div className="flex items-center gap-2 flex-wrap bg-slate-50/80 p-2 rounded-2xl border border-slate-200/60 self-start md:self-auto">
+                <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white rounded-xl shadow-xs text-xs font-mono font-bold text-slate-800">
+                  <BatteryCharging size={14} className="text-emerald-500" />
+                  <span>88% LiPo</span>
+                </div>
+                <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white rounded-xl shadow-xs text-xs font-mono font-bold text-slate-800">
+                  <Wifi size={14} className="text-primary" />
+                  <span>4G LTE</span>
+                </div>
+                <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white rounded-xl shadow-xs text-xs font-mono font-bold text-slate-800">
+                  <Satellite size={14} className="text-accent" />
+                  <span>12 Sats</span>
+                </div>
               </div>
-              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white rounded-xl shadow-xs text-xs font-mono font-bold text-slate-800">
-                <Wifi size={14} className="text-primary" />
-                <span>4G LTE</span>
-              </div>
-              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white rounded-xl shadow-xs text-xs font-mono font-bold text-slate-800">
-                <Satellite size={14} className="text-accent" />
-                <span>12 Sats</span>
-              </div>
-            </div>
-          </motion.div>
+            </motion.div>
+          )}
 
           {/* Selector de Secciones SIN Scroll Horizontal (Cuadrícula Adaptativa de 4 Columnas) */}
-          <div className="bg-white/80 backdrop-blur-xl border border-white/50 p-2 rounded-2xl shadow-sm border border-gray-100 grid grid-cols-2 lg:grid-cols-4 gap-2">
-            {tabs.map((tab) => {
-              const Icon = tab.icon;
-              const isActive = activeTab === tab.id;
+          {!shouldHideNav && (
+            <div className="bg-white/80 backdrop-blur-xl border border-white/50 p-2 rounded-2xl shadow-sm border border-gray-100 grid grid-cols-2 lg:grid-cols-4 gap-2">
+              {tabs.map((tab) => {
+                const Icon = tab.icon;
+                const isActive = activeTab === tab.id;
 
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`flex items-center gap-2 p-3 rounded-xl font-bold text-xs transition-all duration-200 text-left select-none relative overflow-hidden cursor-pointer ${
-                    isActive
-                      ? 'bg-primary text-white shadow-lg shadow-primary/30 scale-[1.01]'
-                      : 'bg-slate-50/80 hover:bg-slate-100 text-slate-700 hover:text-slate-900 border border-slate-200/60'
-                  }`}
-                >
-                  <div className={`p-1.5 rounded-lg shrink-0 ${
-                    isActive ? 'bg-white/20 text-white' : 'bg-white text-slate-500 shadow-xs'
-                  }`}>
-                    <Icon size={16} strokeWidth={isActive ? 2.5 : 2} />
-                  </div>
-                  <div className="flex flex-col min-w-0">
-                    <span className="truncate leading-tight font-extrabold text-[12px]">{tab.label}</span>
-                    <span className={`text-[10px] font-mono leading-tight mt-0.5 truncate ${
-                      isActive ? 'text-white/80' : 'text-slate-400'
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`flex items-center gap-2 p-3 rounded-xl font-bold text-xs transition-all duration-200 text-left select-none relative overflow-hidden cursor-pointer ${
+                      isActive
+                        ? 'bg-primary text-white shadow-lg shadow-primary/30 scale-[1.01]'
+                        : 'bg-slate-50/80 hover:bg-slate-100 text-slate-700 hover:text-slate-900 border border-slate-200/60'
+                    }`}
+                  >
+                    <div className={`p-1.5 rounded-lg shrink-0 ${
+                      isActive ? 'bg-white/20 text-white' : 'bg-white text-slate-500 shadow-xs'
                     }`}>
-                      {tab.badge}
-                    </span>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
+                      <Icon size={16} strokeWidth={isActive ? 2.5 : 2} />
+                    </div>
+                    <div className="flex flex-col min-w-0">
+                      <span className="truncate leading-tight font-extrabold text-[12px]">{tab.label}</span>
+                      <span className={`text-[10px] font-mono leading-tight mt-0.5 truncate ${
+                        isActive ? 'text-white/80' : 'text-slate-400'
+                      }`}>
+                        {tab.badge}
+                      </span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
 
           {/* Área de Visualización Dinámica */}
-          <div className="transition-all">
+          <div className={shouldHideNav ? 'w-full h-full m-0 p-0' : 'transition-all'}>
             {activeTab === 'gps' && (
               <LiveGpsTracker isModal={false} onTrackingChange={setIsGpsTracking} />
             )}
