@@ -26,6 +26,57 @@ export function setGeminiApiKey(key) {
 }
 
 /**
+ * Consulta dinámicamente los modelos autorizados directamente desde Google AI Studio para esta API Key
+ */
+export async function getAvailableGeminiEndpoints(apiKey) {
+  const versions = ['v1beta', 'v1'];
+  for (const ver of versions) {
+    try {
+      const res = await fetch(`https://generativelanguage.googleapis.com/${ver}/models?key=${apiKey}`);
+      if (res.ok) {
+        const data = await res.json();
+        const available = (data.models || [])
+          .filter(m => Array.isArray(m.supportedGenerationMethods) && m.supportedGenerationMethods.includes('generateContent'))
+          .map(m => ({
+            name: m.name.replace(/^models\//, ''),
+            version: ver
+          }));
+
+        if (available.length > 0) {
+          // Priorizar modelos Flash y versiones 2.0 / 1.5
+          available.sort((a, b) => {
+            const score = (item) => {
+              let s = 0;
+              if (item.name.includes('flash')) s += 10;
+              if (item.name.includes('2.0')) s += 5;
+              if (item.name.includes('1.5')) s += 3;
+              if (item.name.includes('exp') || item.name.includes('preview')) s -= 2;
+              return s;
+            };
+            return score(b) - score(a);
+          });
+          return available;
+        }
+      }
+    } catch (e) {
+      console.warn(`Error al consultar modelos en ${ver}:`, e);
+    }
+  }
+
+  // Lista de reserva por si la consulta de catálogo falla
+  return [
+    { name: 'gemini-1.5-flash', version: 'v1beta' },
+    { name: 'gemini-1.5-flash', version: 'v1' },
+    { name: 'gemini-2.0-flash', version: 'v1beta' },
+    { name: 'gemini-1.5-flash-latest', version: 'v1beta' },
+    { name: 'gemini-1.5-flash-8b', version: 'v1beta' },
+    { name: 'gemini-2.0-flash-exp', version: 'v1beta' },
+    { name: 'gemini-1.5-pro', version: 'v1beta' },
+    { name: 'gemini-1.5-pro', version: 'v1' }
+  ];
+}
+
+/**
  * Analiza la fotografía del casco utilizando Google Gemini Vision AI
  * @param {string} imageBase64DataUrl Imagen en formato data:image/...;base64,...
  * @param {Function} onProgress Callback para reportar el progreso del análisis
@@ -49,24 +100,14 @@ export async function inspectHelmetWithGeminiAI(imageBase64DataUrl, onProgress, 
 
   const prompt = `Actúa como un perito especializado en seguridad vial e inspección técnica de cascos de motociclista según la Norma Oficial Mexicana NOM-206-SCFI/SSA2-2018 y los Reglamentos de Tránsito de México (como el de la CDMX y carreteras federales).
 
-Analiza de manera exhaustiva y profesional la fotografía adjunta.
-Debes responder ÚNICAMENTE con un objeto JSON válido, sin delimitadores de código markdown (sin \`\`\`json, sin \`\`\`), con la siguiente estructura exacta:
+Tu objetivo es emitir un DICTAMEN PERICIAL FOTOGRÁFICO de máxima precisión analizando la imagen adjunta.
 
+Devuelve EXCLUSIVAMENTE un objeto JSON válido (sin formato Markdown adicional, sin backticks y sin texto previo o posterior) con la siguiente estructura:
 {
-  "isHelmet": true,
-  "helmetType": "full_face" | "modular" | "open_face" | "bacinica" | "none",
-  "helmetTypeLabel": "Integral (Full Face)" | "Modular / Abatible" | "Abierto (Jet 3/4)" | "Bacinica / Quitamultas (No Apto)" | "Objeto no identificado como casco",
-  "certificationType": "dot" | "ece2206" | "nom206" | "none",
-  "certificationLabel": "DOT FMVSS 218" | "ECE 22.06 / 22.05" | "NOM-206-SCFI" | "Sin sello legible / No homologado",
-  "certificationNotes": "Detalle sobre sellos o inscripciones visibles en la calota trasera o inferior",
-  "hasFissures": false,
-  "fissuresDetail": "Análisis de integridad estructural de la calota (fracturas, fisuras, abolladuras, raspones profundos)",
-  "hasPreviousCrash": false,
-  "visorCondition": "clear" | "scratched" | "broken_or_none",
-  "visorDetail": "Estado del visor óptico (transparente, rayado, roto, tintado o ausente)",
-  "strapCondition": "good" | "worn" | "broken",
-  "strapDetail": "Estado del sistema de retención y broches",
-  "confidence": 0.95,
+  "isHelmet": true | false,
+  "helmetType": "Integral" | "Modular / Abatible" | "Multiproposito / Cross" | "Jet / Tres Cuartos" | "Bacinica / Tipo Gorra / Ciclismo" | "Desconocido",
+  "certification": "DOT visible / presumible" | "ECE 22.05 / 22.06" | "NOM-206" | "Sin certificación visible / Fake" | "No aplica",
+  "condition": "Excelente / Sin fisuras" | "Desgaste estético superficial" | "Fisuras / Daño estructural detectado" | "Inseguro",
   "score": 88,
   "status": "approved" | "warning" | "rejected",
   "verdictLabel": "APROBADO PARA CIRCULAR EN MÉXICO" | "APTO CON OBSERVACIONES" | "RECHAZADO / RIESGO CRÍTICO",
@@ -88,15 +129,6 @@ Reglas estrictas de evaluación mexicana:
 3. Si no cuenta con sello DOT, ECE o NOM: advertir sobre riesgo de sanción según el reglamento local.
 4. Si la imagen NO contiene un casco de moto: "isHelmet": false, "status": "rejected", "verdictLabel": "NO SE DETECTÓ UN CASCO DE MOTO".`;
 
-  // Modelos oficiales activos de Google Gemini Vision en v1beta (Google AI Studio)
-  const modelEndpoints = [
-    'gemini-2.5-flash',
-    'gemini-2.0-flash',
-    'gemini-1.5-flash',
-    'gemini-1.5-flash-8b',
-    'gemini-1.5-pro'
-  ];
-
   // Si el navegador reporta estar desconectado, abortar inmediatamente con mensaje claro
   if (typeof navigator !== 'undefined' && !navigator.onLine) {
     throw new Error('Sin conexión a internet (dispositivo desconectado de la red). Conéctate a Wi-Fi o datos móviles para consultar Gemini AI.');
@@ -107,14 +139,17 @@ Reglas estrictas de evaluación mexicana:
     console.warn('Advertencia: La clave API configurada no inicia con "AIzaSy...". Asegúrate de que provenga de Google AI Studio (https://aistudio.google.com/app/apikey).');
   }
 
+  // Obtener dinámicamente los modelos autorizados para esta clave de API
+  const endpoints = await getAvailableGeminiEndpoints(apiKey);
+
   let lastError = null;
 
-  for (const modelName of modelEndpoints) {
+  for (const { name: modelName, version: apiVersion } of endpoints) {
     try {
       if (onProgress) onProgress(`Analizando calota, visor y sellos con ${modelName}...`);
 
       const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`,
+        `https://generativelanguage.googleapis.com/${apiVersion}/models/${modelName}:generateContent?key=${apiKey}`,
         {
           method: 'POST',
           headers: {
@@ -135,7 +170,6 @@ Reglas estrictas de evaluación mexicana:
               }
             ],
             generationConfig: {
-              response_mime_type: 'application/json',
               temperature: 0.1
             }
           })
@@ -177,7 +211,7 @@ Reglas estrictas de evaluación mexicana:
         analyzedAt: new Date().toISOString()
       };
     } catch (err) {
-      console.warn(`Error intentando modelo ${modelName}:`, err);
+      console.warn(`Error intentando modelo ${modelName} (${apiVersion}):`, err);
       lastError = err;
       
       // Si el error es de desconexión de red (Failed to fetch / ERR_INTERNET_DISCONNECTED), no reintentar en bucle

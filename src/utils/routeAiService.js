@@ -1,7 +1,7 @@
 // Servicio de Inteligencia Artificial para Análisis Pericial de Rutas y Tráfico GPS
 // Integra QRide IA para evaluar el trayecto, velocidad y congestión
 
-import { getGeminiApiKey } from './helmetAiService';
+import { getGeminiApiKey, getAvailableGeminiEndpoints } from './helmetAiService';
 import jsPDF from 'jspdf';
 
 /**
@@ -373,21 +373,14 @@ Debes responder ÚNICAMENTE con un objeto JSON válido, sin delimitadores markdo
   ]
 }`;
 
-  const modelEndpoints = [
-    'gemini-2.5-flash',
-    'gemini-2.0-flash',
-    'gemini-1.5-flash',
-    'gemini-1.5-flash-8b',
-    'gemini-1.5-pro'
-  ];
-
   if (typeof navigator !== 'undefined' && !navigator.onLine) {
     throw new Error('Sin conexión a internet (dispositivo fuera de línea). Conéctate a Wi-Fi o datos móviles.');
   }
 
+  const endpoints = await getAvailableGeminiEndpoints(apiKey);
   let lastError = null;
 
-  for (const modelName of modelEndpoints) {
+  for (const { name: modelName, version: apiVersion } of endpoints) {
     try {
       if (onProgress) onProgress('QRide IA procesando cuellos de botella y flujo de tráfico...');
 
@@ -404,14 +397,13 @@ Debes responder ÚNICAMENTE con un objeto JSON válido, sin delimitadores markdo
       }
 
       const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`,
+        `https://generativelanguage.googleapis.com/${apiVersion}/models/${modelName}:generateContent?key=${apiKey}`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             contents: [{ parts }],
             generationConfig: {
-              response_mime_type: 'application/json',
               temperature: 0.2
             }
           })
