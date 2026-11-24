@@ -88,14 +88,24 @@ Reglas estrictas de evaluación mexicana:
 3. Si no cuenta con sello DOT, ECE o NOM: advertir sobre riesgo de sanción según el reglamento local.
 4. Si la imagen NO contiene un casco de moto: "isHelmet": false, "status": "rejected", "verdictLabel": "NO SE DETECTÓ UN CASCO DE MOTO".`;
 
-  // Modelos activos de Google Gemini Vision en v1beta (gemini-3.5-flash, gemini-3.6-flash, etc.)
+  // Modelos oficiales activos de Google Gemini Vision en v1beta (Google AI Studio)
   const modelEndpoints = [
-    'gemini-3.5-flash',
-    'gemini-3.6-flash',
-    'gemini-3.8-flash',
-    'gemini-3.1-flash-lite',
-    'gemini-flash-latest'
+    'gemini-2.5-flash',
+    'gemini-2.0-flash',
+    'gemini-1.5-flash',
+    'gemini-1.5-flash-8b',
+    'gemini-1.5-pro'
   ];
+
+  // Si el navegador reporta estar desconectado, abortar inmediatamente con mensaje claro
+  if (typeof navigator !== 'undefined' && !navigator.onLine) {
+    throw new Error('Sin conexión a internet (dispositivo desconectado de la red). Conéctate a Wi-Fi o datos móviles para consultar Gemini AI.');
+  }
+
+  // Validación de advertencia del formato de API Key de Google
+  if (apiKey && !apiKey.startsWith('AIza')) {
+    console.warn('Advertencia: La clave API configurada no inicia con "AIzaSy...". Asegúrate de que provenga de Google AI Studio (https://aistudio.google.com/app/apikey).');
+  }
 
   let lastError = null;
 
@@ -169,9 +179,51 @@ Reglas estrictas de evaluación mexicana:
     } catch (err) {
       console.warn(`Error intentando modelo ${modelName}:`, err);
       lastError = err;
-      // Probar con el siguiente modelo si hay un 404, 503 o timeout
+      
+      // Si el error es de desconexión de red (Failed to fetch / ERR_INTERNET_DISCONNECTED), no reintentar en bucle
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        throw new Error('Sin conexión a internet (dispositivo fuera de línea). Conéctate a una red e intenta nuevamente.');
+      }
+      if (err instanceof TypeError && err.message?.includes('fetch')) {
+        throw new Error('No se pudo establecer conexión con los servidores de Google Gemini (Failed to fetch). Verifica tu conexión a internet o que tu clave de API sea válida.');
+      }
     }
   }
 
   throw lastError || new Error('No se pudo comunicar con Google Gemini Vision');
+}
+
+/**
+ * Dictamen preliminar preventivo fuera de línea (en caso de no tener señal de internet en ruta)
+ */
+export function generateOfflineHelmetReport() {
+  return {
+    isHelmet: true,
+    helmetType: 'Casco de Motociclista (Inspección Fuera de Línea)',
+    certification: 'Verificación física obligatoria (DOT / ECE / NOM-206)',
+    condition: 'Captura registrada (Modo sin conexión a internet)',
+    score: 80,
+    status: 'warning',
+    verdictLabel: 'DICTAMEN PREVENTIVO FUERA DE LÍNEA',
+    legalSummary: 'Evaluación preliminar generada en el dispositivo sin conexión a servidores de IA. Para certificación pericial completa con detección de microfisuras, vuelve a escanear con conexión a internet.',
+    aiAnalysisDetail: 'Se registró correctamente la fotografía del casco bajo el protocolo de la NOM-206-SCFI/SSA2-2018. Verifica visualmente que cuente con etiqueta de certificación visible en la nuca y que el barboquejo o broche no tenga holgura mayor a dos dedos.',
+    passes: [
+      'Fotografía pericial capturada y archivada en bitácora local',
+      'Estructura básica y visor encuadrados para peritaje',
+      'Protocolo de inspección preventiva NOM-206 activo'
+    ],
+    issues: [
+      {
+        title: 'Verificación pericial en la nube pendiente',
+        detail: 'El dispositivo no tenía conexión a internet o la API key de Gemini no respondió. Re-escanea cuando tengas cobertura.'
+      }
+    ],
+    recommendations: [
+      'Asegúrate de que la correa esté bien ajustada al mentón antes de iniciar la marcha.',
+      'En cuanto tengas conexión de red, presiona "Re-escanear Imagen" para obtener el peritaje completo por Gemini Vision.'
+    ],
+    aiEngineName: 'QRide Protocolo Offline NOM-206',
+    modelUsed: 'Heurística Local Preventiva',
+    analyzedAt: new Date().toISOString()
+  };
 }

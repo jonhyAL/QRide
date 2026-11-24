@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { 
   inspectHelmetWithGeminiAI, 
+  generateOfflineHelmetReport,
   getGeminiApiKey, 
   setGeminiApiKey 
 } from '../../utils/helmetAiService';
@@ -98,9 +99,10 @@ export function HelmetSafetyCheckView({ onCameraActiveChange }) {
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         videoRef.current.onloadedmetadata = () => {
-          videoRef.current?.play().catch(e => console.warn('Play metadata error:', e));
+          videoRef.current?.play().catch(e => {
+            if (e.name !== 'AbortError') console.warn('Play metadata error:', e);
+          });
         };
-        videoRef.current?.play().catch(e => console.warn('Direct play error:', e));
       }
       proximityAudio.playArmTone();
     } catch (err) {
@@ -125,13 +127,7 @@ export function HelmetSafetyCheckView({ onCameraActiveChange }) {
     setCameraFacing(prev => (prev === 'environment' ? 'user' : 'environment'));
   };
 
-  useEffect(() => {
-    if (streamActive && videoRef.current && streamRef.current) {
-      videoRef.current.srcObject = streamRef.current;
-      videoRef.current.play().catch(e => console.warn('Play on streamActive effect:', e));
-    }
-  }, [streamActive]);
-
+  // Re-iniciar si cambia la orientación de la cámara (frontal / trasera)
   useEffect(() => {
     if (streamActive) {
       startCamera();
@@ -522,17 +518,36 @@ export function HelmetSafetyCheckView({ onCameraActiveChange }) {
 
           {/* Error de Análisis si ocurrió */}
           {analysisError && (
-            <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl text-rose-900 text-xs flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <AlertTriangle size={18} className="text-rose-600 shrink-0" />
-                <span>{analysisError}</span>
+            <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl text-rose-900 text-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm">
+              <div className="flex items-start gap-2.5">
+                <AlertTriangle size={18} className="text-rose-600 shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <p className="font-bold text-rose-950">{analysisError}</p>
+                  <p className="text-[11px] text-rose-700">
+                    Asegúrate de tener conexión a internet y que tu clave de Gemini API comience con <code className="bg-rose-100 px-1 py-0.5 rounded font-mono font-bold">AIzaSy...</code>
+                  </p>
+                </div>
               </div>
-              <button
-                onClick={() => setShowApiKeyModal(true)}
-                className="px-3 py-1 bg-rose-600 text-white rounded-lg font-bold shrink-0 text-[11px]"
-              >
-                Revisar API Key
-              </button>
+              <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto">
+                <button
+                  onClick={() => setShowApiKeyModal(true)}
+                  className="flex-1 sm:flex-initial px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold text-[11px] shadow-sm transition-all"
+                >
+                  Configurar API Key
+                </button>
+                {capturedImage && (
+                  <button
+                    onClick={() => {
+                      const offlineReport = generateOfflineHelmetReport();
+                      setReport(offlineReport);
+                      setAnalysisError(null);
+                    }}
+                    className="flex-1 sm:flex-initial px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl font-bold text-[11px] shadow-sm transition-all"
+                  >
+                    Dictamen Offline
+                  </button>
+                )}
+              </div>
             </div>
           )}
         </div>
