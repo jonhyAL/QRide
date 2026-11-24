@@ -90,30 +90,39 @@ export const MONITORED_CLASSES = [
  */
 export function estimateProximity(bbox, frameWidth, frameHeight, className = 'person') {
   const [x, y, w, h] = bbox;
-  const areaRatio = (w * h) / (frameWidth * frameHeight);
-  const bottomYRatio = (y + h) / frameHeight;
+  const heightRatio = h / frameHeight;
+  const widthRatio = w / frameWidth;
 
-  // Los vehículos de gran porte ocupan más área visual a mayor distancia
+  // Calibración óptica inversa por tipo de objeto
   const isLargeVehicle = className === 'truck' || className === 'bus';
   const isCarOrMoto = className === 'car' || className === 'motorcycle';
 
   let distance = 5.0;
 
   if (isLargeVehicle) {
-    distance = Math.max(0.8, 8.5 - (areaRatio * 20 + bottomYRatio * 3.5));
+    const dominantRatio = Math.max(heightRatio * 1.1, widthRatio * 0.95);
+    distance = dominantRatio > 0 ? 0.95 / dominantRatio : 8.0;
   } else if (isCarOrMoto) {
-    distance = Math.max(0.6, 6.8 - (areaRatio * 18 + bottomYRatio * 3.0));
+    const dominantRatio = Math.max(heightRatio * 1.25, widthRatio);
+    distance = dominantRatio > 0 ? 0.75 / dominantRatio : 6.0;
   } else {
-    // Personas o bicicletas
-    distance = Math.max(0.5, 5.0 - (areaRatio * 16 + bottomYRatio * 2.5));
+    // Personas, ciclistas u objetos
+    const dominantRatio = Math.max(heightRatio, widthRatio * 1.5);
+    distance = dominantRatio > 0 ? 0.48 / dominantRatio : 5.0;
   }
 
+  // Acotar distancia entre 0.3m y 9.9m
+  distance = Math.min(9.9, Math.max(0.3, distance));
   distance = Number(distance.toFixed(1));
 
-  let zone = 'safe'; // 'safe' (> 4.5m) | 'warning' (2.5m - 4.5m) | 'critical' (< 2.5m)
-  if (distance <= 2.5) {
+  // Calibración solicitada:
+  // Zona Crítica (ROJO + Alarma sonora): Aprox a medio metro (<= 0.6m)
+  // Zona de Advertencia (AMARILLO, visual sin alarma sonora): 0.6m < dist <= 1.8m
+  // Zona Segura (AZUL): > 1.8m
+  let zone = 'safe';
+  if (distance <= 0.6) {
     zone = 'critical';
-  } else if (distance <= 4.5) {
+  } else if (distance <= 1.8) {
     zone = 'warning';
   }
 

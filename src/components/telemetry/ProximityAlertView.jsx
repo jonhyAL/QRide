@@ -223,11 +223,11 @@ export function ProximityAlertView() {
             setClosestObject(nearest);
 
             // Disparar alertas acústicas adaptativas según la proximidad del objeto más cercano
-            // Regla solicitada: Solo suena cuando el objetivo está en ROJO (zona crítica < 2.5m).
+            // Regla solicitada: Solo suena cuando el objetivo está en ROJO (zona crítica a medio metro, <= 0.6m).
             // En AMARILLO (advertencia) solo se resalta visualmente en pantalla sin sonido.
             if (nearest && soundEnabledRef.current) {
               if (nearest.proximity.zone === 'critical') {
-                // Menor a 2.5 metros: sonido penetrante de advertencia crítica
+                // Aprox a medio metro: sonido de advertencia crítica
                 proximityAudio.playCriticalTone();
               }
             }
@@ -354,7 +354,7 @@ export function ProximityAlertView() {
             </span>
           </div>
           <p className="text-xs text-slate-300 max-w-2xl leading-relaxed">
-            Escanea en tiempo real mediante visión artificial para detectar peatones, automóviles, camiones y motocicletas. Calcula la distancia métrica continua y activa alertas automáticas por proximidad (&lt; 2.5m).
+            Escanea en tiempo real mediante visión artificial para detectar peatones, automóviles, camiones y motocicletas. Calcula la distancia métrica continua y activa alertas automáticas por proximidad crítica (&lt; 0.6m).
           </p>
         </div>
 
@@ -545,7 +545,7 @@ export function ProximityAlertView() {
                 </div>
                 <p className="text-[11px] text-center font-bold mt-1">
                   {closestObject.proximity.zone === 'critical' 
-                    ? '¡Alarma sonora continua activada (< 2.5m)!' 
+                    ? '¡Alarma sonora continua activada (< 0.6m)!' 
                     : closestObject.proximity.zone === 'warning'
                     ? 'Advertencia visual en rango de prevención'
                     : 'Sin peligro de colisión'}
